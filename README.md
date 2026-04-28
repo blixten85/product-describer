@@ -8,13 +8,11 @@ Genererar svenska produktbeskrivningar med ett lokalt LLM via [Ollama](https://o
 ## Starta
 
 ```bash
-git clone https://github.com/blixten85/product-describer
-cd product-describer
-mkdir data
+# Lägg compose.yml på servern och kör:
 docker compose up -d
 
-# Ladda ner modellen första gången (5 GB, görs bara en gång)
-docker exec product-describer-ollama-1 ollama pull llama3.1:8b
+# Ladda ner modellen första gången (~5 GB, görs bara en gång)
+docker exec product-describer-ollama ollama pull llama3.1:8b
 ```
 
 Öppna **http://din-server:5000**
@@ -38,17 +36,23 @@ Ladda upp den färdiga CSV-filen till [Claude.ai](https://claude.ai) och be den 
 | `mistral:7b` | 4.1 GB | OK | OK |
 
 ```bash
-# Byt modell
-docker exec product-describer-ollama-1 ollama pull qwen2.5:7b
+docker exec product-describer-ollama ollama pull qwen2.5:7b
 ```
 
-## GPU-stöd
+## Hårdvara (Ryzen 5 7430U, 16 GB RAM)
 
-Avkommentera `deploy`-sektionen i `compose.yml` (kräver `nvidia-container-toolkit`).
+Servern har en **integrerad AMD Barcelo-GPU** (Vega/GCN-5) som delar systemminnet med CPU:n.
+ROCm stöder inte officiellt iGPU, men kan provas med `HSA_OVERRIDE_GFX_VERSION=9.0.0` — avkommentera
+relevanta rader i `compose.yml`. Utan GPU körs modellen på CPU (AVX2) vilket ger ungefär:
 
-## Tiduppskattning (CPU)
+| Modell | Hastighet (CPU) |
+|--------|----------------|
+| `llama3.1:8b` | ~3–5 tok/s |
+| `qwen2.5:7b` | ~4–6 tok/s |
 
-| Artiklar | 1 worker | 2 workers |
-|----------|----------|-----------|
-| 1 000    | ~50 min  | ~25 min   |
-| 8 000    | ~7 tim   | ~3.5 tim  |
+Med 2–4 workers och ~3 sek/artikel tar 8 000 artiklar ungefär 3–4 timmar.
+Kör med fördel över natten.
+
+## GPU (valfritt)
+
+Se kommentarerna i `compose.yml` för AMD ROCm (iGPU-workaround) och NVIDIA.
