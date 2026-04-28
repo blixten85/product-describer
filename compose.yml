@@ -10,6 +10,8 @@ services:
     volumes:
       - ${DOCKER}/product-describer:/app/uploads
       - ${DOCKER}/product-describer:/app/outputs
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - product-describer-ollama
     restart: unless-stopped
