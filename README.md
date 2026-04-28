@@ -5,40 +5,39 @@ Genererar svenska produktbeskrivningar med Claude Haiku via [Batches API](https:
 **Input:** CSV-fil med kolumnerna `Site, Product, Price (SEK), Link`  
 **Output:** Samma CSV med en extra kolumn `Beskrivning`
 
-## Snabbstart
+## Web UI (Docker)
 
 ```bash
-# Sätt API-nyckel
-export ANTHROPIC_API_KEY=sk-ant-...
+# Starta
+ANTHROPIC_API_KEY=sk-ant-... docker compose up -d
 
-# Kör allt i ett steg
-python main.py run products.csv
-
-# Eller i steg (för stora filer som tar länge)
-python main.py submit products.csv   # Skickar batch, sparar ID
-python main.py status                # Kolla framsteg
-python main.py collect               # Hämta resultat när klar
+# Öppna http://localhost:5000
 ```
 
-## Docker
+Ladda upp CSV, klicka "Generera beskrivningar" och ladda ner resultatet när det är klart.  
+Batchen körs asynkront — sidan pollar automatiskt var 15:e sekund.
+
+## CLI
 
 ```bash
-# Kör med Docker (montera katalog med CSV-filen)
-docker run --rm \
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-  -v $(pwd):/data \
-  ghcr.io/blixten85/product-describer \
-  run /data/products.csv --output /data/products_med_beskrivning.csv
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Kör allt i ett steg (väntar tills klart)
+python main.py run products.csv
+
+# Eller stegvis (för stora filer som tar länge)
+python main.py submit products.csv   # Skickar batch, sparar ID
+python main.py status                # Kolla framsteg
+python main.py collect               # Hämta när klar
 ```
 
 ## Kostnad (uppskattning)
 
-Claude Haiku 4.5 via Batches API:
+Claude Haiku 4.5 via Batches API (50% rabatt):
 
 | Artiklar | Ungefärlig kostnad |
 |----------|--------------------|
-| 1 000    | ~$0.30             |
-| 8 000    | ~$2.50             |
-| 50 000   | ~$15               |
-
-Batches API är 50% billigare än realtids-API och hanterar upp till 100 000 förfrågningar per batch.
+| 1 000    | ~3 kr              |
+| 8 000    | ~25 kr             |
+| 50 000   | ~150 kr            |
