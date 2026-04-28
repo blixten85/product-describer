@@ -16,11 +16,20 @@ services:
 
   product-describer-ollama:
     container_name: product-describer-ollama
-    image: ollama/ollama
+    image: ollama/ollama        # CPU
+    # image: ollama/ollama:rocm # AMD GPU — byt hit och avkommentera devices nedan
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
-    # Avkommentera för GPU-stöd (kräver nvidia-container-toolkit):
+    # AMD GPU (ROCm) — kräver ROCm-drivrutiner på hosten:
+    # devices:
+    #   - /dev/kfd
+    #   - /dev/dri
+    # group_add:
+    #   - video
+    #   - render
+    #
+    # NVIDIA — kräver nvidia-container-toolkit:
     # deploy:
     #   resources:
     #     reservations:
