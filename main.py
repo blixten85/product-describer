@@ -58,7 +58,10 @@ def generate_description(site: str, product: str, price: str,
 
 
 def load_csv(path: str) -> tuple[list[dict], list[str]]:
-    with open(path, newline="", encoding="utf-8") as f:
+    resolved = Path(path).resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"Filen hittades inte: {path}")
+    with open(resolved, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         fieldnames = list(reader.fieldnames or [])

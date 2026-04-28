@@ -144,15 +144,15 @@ def upload():
         return jsonify({"error": f"Kan inte ansluta till Ollama på {ollama_url}"}), 503
 
     job_id = str(uuid.uuid4())[:8]
-    safe_name = Path(f.filename).name
-    input_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
+    original_name = Path(f.filename).name
+    input_path = UPLOAD_DIR / f"{job_id}.csv"
     f.save(input_path)
 
     try:
         rows, _ = load_csv(str(input_path))
-    except Exception as e:
+    except Exception:
         input_path.unlink(missing_ok=True)
-        return jsonify({"error": f"Kunde inte läsa CSV: {e}"}), 400
+        return jsonify({"error": "Kunde inte läsa CSV-filen"}), 400
 
     if not rows:
         input_path.unlink(missing_ok=True)
@@ -160,7 +160,7 @@ def upload():
 
     job = {
         "id": job_id,
-        "filename": safe_name,
+        "filename": original_name,
         "input_path": str(input_path),
         "model": model,
         "total": len(rows),
