@@ -1,7 +1,7 @@
 services:
   product-describer:
     container_name: product-describer
-    build: .
+    image: ghcr.io/blixten85/product-describer:latest
     ports:
       - "5000:5000"
     environment:
