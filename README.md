@@ -1,58 +1,57 @@
 # product-describer
 
-Genererar svenska produktbeskrivningar med ett lokalt LLM via [Ollama](https://ollama.com) — helt gratis, körs på din egen server.
+Generates Swedish product descriptions using a local LLM via [Ollama](https://ollama.com) — completely free, runs on your own server.
 
-**Input:** CSV-fil med kolumnerna `Site, Product, Price (SEK), Link`  
-**Output:** Samma CSV med en extra kolumn `Beskrivning`
+**Input:** CSV file with columns `Site, Product, Price (SEK), Link`  
+**Output:** Same CSV with an extra column `Beskrivning` (Description)
 
-## Starta
+## Getting started
 
 ```bash
-# Lägg compose.yml på servern och kör:
+# Place compose.yml on your server and run:
 docker compose up -d
 
-# Ladda ner modellen första gången (~5 GB, görs bara en gång)
+# Pull the model once (~5 GB, only needed once)
 docker exec product-describer-ollama ollama pull llama3.1:8b
 ```
 
-Öppna **http://din-server:5000**
+Open **http://your-server:5000**
 
-## Användning
+## Usage
 
-1. Dra och släpp CSV-fil
-2. Välj modell och antal workers
-3. Klicka **Generera** — bearbetningen körs lokalt i bakgrunden
-4. Ladda ner CSV-filen när den är klar
+1. Drag and drop a CSV file
+2. Select model and number of workers
+3. Click **Generera** — processing runs locally in the background
+4. Download the CSV when complete
 
-**Tips:** Vill du finputsa beskrivningar som inte håller måttet?  
-Ladda upp den färdiga CSV-filen till [Claude.ai](https://claude.ai) och be den förbättra utvalda rader — ingår i Pro-abonnemanget.
+**Tip:** Want to refine descriptions that aren't quite right?  
+Upload the finished CSV to [Claude.ai](https://claude.ai) and ask it to improve selected rows — included in your Pro subscription.
 
-## Modeller
+## Models
 
-| Modell | Storlek | Kvalitet | Svenska |
-|--------|---------|----------|---------|
-| `llama3.1:8b` | 5 GB | Bra | Bra |
-| `qwen2.5:7b` | 4.7 GB | Bra | Mycket bra |
+| Model | Size | Quality | Swedish |
+|-------|------|---------|---------|
+| `llama3.1:8b` | 5 GB | Good | Good |
+| `qwen2.5:7b` | 4.7 GB | Good | Very good |
 | `mistral:7b` | 4.1 GB | OK | OK |
 
 ```bash
 docker exec product-describer-ollama ollama pull qwen2.5:7b
 ```
 
-## Hårdvara (Ryzen 5 7430U, 16 GB RAM)
+## Hardware (Ryzen 5 7430U, 16 GB RAM)
 
-Servern har en **integrerad AMD Barcelo-GPU** (Vega/GCN-5) som delar systemminnet med CPU:n.
-ROCm stöder inte officiellt iGPU, men kan provas med `HSA_OVERRIDE_GFX_VERSION=9.0.0` — avkommentera
-relevanta rader i `compose.yml`. Utan GPU körs modellen på CPU (AVX2) vilket ger ungefär:
+The server has an **integrated AMD Barcelo GPU** (Vega/GCN-5) sharing system memory with the CPU.
+ROCm does not officially support iGPUs, but can be attempted with `HSA_OVERRIDE_GFX_VERSION=9.0.0` — uncomment
+the relevant lines in `compose.yml`. Without GPU, the model runs on CPU (AVX2):
 
-| Modell | Hastighet (CPU) |
-|--------|----------------|
+| Model | Speed (CPU) |
+|-------|-------------|
 | `llama3.1:8b` | ~3–5 tok/s |
 | `qwen2.5:7b` | ~4–6 tok/s |
 
-Med 2–4 workers och ~3 sek/artikel tar 8 000 artiklar ungefär 3–4 timmar.
-Kör med fördel över natten.
+With 2–4 workers at ~3 sec/item, 8,000 items takes roughly 3–4 hours. Best run overnight.
 
-## GPU (valfritt)
+## GPU (optional)
 
-Se kommentarerna i `compose.yml` för AMD ROCm (iGPU-workaround) och NVIDIA.
+See the comments in `compose.yml` for AMD ROCm (iGPU workaround) and NVIDIA.
