@@ -1,20 +1,20 @@
 services:
-  app:
+  product-describer:
     container_name: product-describer
     build: .
     ports:
       - "5000:5000"
     environment:
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://product-describer-ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
     volumes:
       - ${DOCKER}/product-describer:/app/uploads
       - ${DOCKER}/product-describer:/app/outputs
     depends_on:
-      - ollama
+      - product-describer-ollama
     restart: unless-stopped
 
-  ollama:
+  product-describer-ollama:
     container_name: product-describer-ollama
     image: ollama/ollama
     volumes:
