@@ -1,43 +1,54 @@
 # product-describer
 
-Genererar svenska produktbeskrivningar med Claude Haiku via [Batches API](https://docs.anthropic.com/en/api/creating-message-batches) — 50% billigare än standard och hanterar 8 000+ artiklar asynkront.
+Genererar svenska produktbeskrivningar med ett lokalt LLM via [Ollama](https://ollama.com) — helt gratis, körs på din egen server.
 
 **Input:** CSV-fil med kolumnerna `Site, Product, Price (SEK), Link`  
 **Output:** Samma CSV med en extra kolumn `Beskrivning`
 
-## Web UI (Docker)
+## Starta
 
 ```bash
-# Starta
-ANTHROPIC_API_KEY=sk-ant-... docker compose up -d
+git clone https://github.com/blixten85/product-describer
+cd product-describer
+mkdir data
+docker compose up -d
 
-# Öppna http://localhost:5000
+# Ladda ner modellen första gången (5 GB, görs bara en gång)
+docker exec product-describer-ollama-1 ollama pull llama3.1:8b
 ```
 
-Ladda upp CSV, klicka "Generera beskrivningar" och ladda ner resultatet när det är klart.  
-Batchen körs asynkront — sidan pollar automatiskt var 15:e sekund.
+Öppna **http://din-server:5000**
 
-## CLI
+## Användning
+
+1. Dra och släpp CSV-fil
+2. Välj modell och antal workers
+3. Klicka **Generera** — bearbetningen körs lokalt i bakgrunden
+4. Ladda ner CSV-filen när den är klar
+
+**Tips:** Vill du finputsa beskrivningar som inte håller måttet?  
+Ladda upp den färdiga CSV-filen till [Claude.ai](https://claude.ai) och be den förbättra utvalda rader — ingår i Pro-abonnemanget.
+
+## Modeller
+
+| Modell | Storlek | Kvalitet | Svenska |
+|--------|---------|----------|---------|
+| `llama3.1:8b` | 5 GB | Bra | Bra |
+| `qwen2.5:7b` | 4.7 GB | Bra | Mycket bra |
+| `mistral:7b` | 4.1 GB | OK | OK |
 
 ```bash
-pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Kör allt i ett steg (väntar tills klart)
-python main.py run products.csv
-
-# Eller stegvis (för stora filer som tar länge)
-python main.py submit products.csv   # Skickar batch, sparar ID
-python main.py status                # Kolla framsteg
-python main.py collect               # Hämta när klar
+# Byt modell
+docker exec product-describer-ollama-1 ollama pull qwen2.5:7b
 ```
 
-## Kostnad (uppskattning)
+## GPU-stöd
 
-Claude Haiku 4.5 via Batches API (50% rabatt):
+Avkommentera `deploy`-sektionen i `compose.yml` (kräver `nvidia-container-toolkit`).
 
-| Artiklar | Ungefärlig kostnad |
-|----------|--------------------|
-| 1 000    | ~3 kr              |
-| 8 000    | ~25 kr             |
-| 50 000   | ~150 kr            |
+## Tiduppskattning (CPU)
+
+| Artiklar | 1 worker | 2 workers |
+|----------|----------|-----------|
+| 1 000    | ~50 min  | ~25 min   |
+| 8 000    | ~7 tim   | ~3.5 tim  |
