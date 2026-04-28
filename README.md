@@ -1,5 +1,10 @@
 # product-describer
 
+[![Docker](https://github.com/blixten85/product-describer/actions/workflows/docker.yml/badge.svg)](https://github.com/blixten85/product-describer/actions/workflows/docker.yml)
+[![CodeQL](https://github.com/blixten85/product-describer/actions/workflows/codeql.yml/badge.svg)](https://github.com/blixten85/product-describer/actions/workflows/codeql.yml)
+[![Image](https://ghcr-badge.egpl.dev/blixten85/product-describer/size?color=blue&label=image)](https://github.com/blixten85/product-describer/pkgs/container/product-describer)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Generates Swedish product descriptions using a local LLM via [Ollama](https://ollama.com) — completely free, runs on your own server.
 
 **Input:** CSV file with columns `Site, Product, Price (SEK), Link`  
