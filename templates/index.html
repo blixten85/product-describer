@@ -1,112 +1,584 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="sv" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product Describer</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <script>
         (function () {
             const s = localStorage.getItem('theme');
             const p = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-bs-theme', s || p);
+            document.documentElement.setAttribute('data-theme', s || p);
         })();
     </script>
     <style>
-        .navbar { border-bottom: 1px solid var(--bs-border-color); background: var(--bs-body-bg) !important; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:           #0c0e14;
+            --bg-2:         #13161f;
+            --bg-3:         #1c2030;
+            --border:       rgba(255,255,255,0.07);
+            --text:         #e4e2dc;
+            --text-dim:     #6b7280;
+            --accent:       #f0a500;
+            --accent-dim:   rgba(240,165,0,0.10);
+            --accent-glow:  rgba(240,165,0,0.22);
+            --success:      #22c55e;
+            --success-dim:  rgba(34,197,94,0.12);
+            --danger:       #ef4444;
+            --danger-dim:   rgba(239,68,68,0.12);
+            --blue-dim:     rgba(96,165,250,0.12);
+            --r:            12px;
+            --ff-head:      'Syne', sans-serif;
+            --ff-mono:      'JetBrains Mono', monospace;
+        }
+
+        [data-theme="light"] {
+            --bg:           #f0ede6;
+            --bg-2:         #faf8f4;
+            --bg-3:         #e8e4db;
+            --border:       rgba(0,0,0,0.08);
+            --text:         #1c1c2e;
+            --text-dim:     #6b6b7b;
+            --accent:       #c97d00;
+            --accent-dim:   rgba(201,125,0,0.10);
+            --accent-glow:  rgba(201,125,0,0.20);
+            --success:      #16a34a;
+            --success-dim:  rgba(22,163,74,0.12);
+            --danger:       #dc2626;
+            --danger-dim:   rgba(220,38,38,0.12);
+            --blue-dim:     rgba(37,99,235,0.10);
+        }
+
+        html { font-size: 15px; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--ff-mono);
+            font-weight: 300;
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-inner {
+            max-width: 940px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 58px;
+            display: flex;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: var(--ff-head);
+            font-weight: 800;
+            font-size: 1rem;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-mark {
+            width: 26px;
+            height: 26px;
+            background: var(--accent);
+            border-radius: 5px;
+            display: grid;
+            place-items: center;
+            font-size: 13px;
+            color: #0c0e14;
+            flex-shrink: 0;
+        }
+
+        .nav-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 0.73rem;
+            color: var(--text-dim);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--text-dim);
+            transition: background 0.3s, box-shadow 0.3s;
+            flex-shrink: 0;
+        }
+
+        .status-dot.ok  { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        .status-dot.err { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+
+        .theme-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            background: var(--bg-3);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            font-size: 15px;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        main {
+            max-width: 940px;
+            margin: 0 auto;
+            padding: 32px 24px 72px;
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            overflow: hidden;
+            animation: fade-up 0.35s ease both;
+        }
+
+        .card-body { padding: 28px; }
+
+        .card-header {
+            padding: 13px 24px;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--ff-head);
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-dim);
+        }
+
+        .section-title {
+            font-family: var(--ff-head);
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: -0.01em;
+            margin-bottom: 20px;
+        }
+
         .drop-zone {
-            border: 2px dashed var(--bs-border-color);
-            border-radius: 12px;
+            border: 1.5px dashed var(--border);
+            border-radius: 10px;
             padding: 48px 24px;
             text-align: center;
             cursor: pointer;
-            transition: border-color .2s, background .2s;
+            transition: border-color 0.2s, background 0.2s, transform 0.2s;
         }
-        .drop-zone:hover, .drop-zone.drag-over { border-color: #3b82f6; background: rgba(59,130,246,.06); }
-        .drop-zone .bi { font-size: 2.5rem; color: var(--bs-secondary-color); }
-        .theme-toggle {
-            background: none; border: 1px solid var(--bs-border-color);
-            border-radius: 8px; padding: 5px 10px;
-            color: var(--bs-body-color); cursor: pointer;
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: var(--accent-dim);
         }
-        .theme-toggle:hover { background: var(--bs-secondary-bg); }
-        .hint { font-size: .8rem; color: var(--bs-secondary-color); }
-        .progress { height: 6px; }
-        .job-row td { vertical-align: middle; }
-        .ollama-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            display: inline-block; margin-right: 6px;
+
+        .drop-zone.drag-over { transform: scale(1.005); }
+
+        .drop-icon { font-size: 2.2rem; display: block; margin-bottom: 14px; opacity: 0.5; }
+
+        .drop-title {
+            font-family: var(--ff-head);
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
         }
-        .ollama-dot.ok { background: #22c55e; }
-        .ollama-dot.err { background: #ef4444; }
+
+        .drop-sub { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 12px; }
+
+        .drop-tag {
+            display: inline-block;
+            background: var(--bg-3);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 3px 9px;
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            letter-spacing: 0.05em;
+        }
+
+        .file-info {
+            margin-top: 18px;
+            background: var(--bg-3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px 20px;
+            display: none;
+            animation: fade-up 0.25s ease both;
+        }
+
+        .file-info.show { display: block; }
+
+        .file-meta { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+
+        .file-icon-box {
+            width: 38px;
+            height: 38px;
+            background: var(--accent-dim);
+            border: 1px solid rgba(240,165,0,0.18);
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            font-size: 17px;
+            flex-shrink: 0;
+        }
+
+        .file-name { font-family: var(--ff-head); font-weight: 600; font-size: 0.88rem; margin-bottom: 3px; word-break: break-all; }
+        .file-sub  { font-size: 0.7rem; color: var(--text-dim); line-height: 1.6; }
+        .file-estimate { color: var(--accent); }
+
+        .file-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+        select {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 7px 28px 7px 11px;
+            font-family: var(--ff-mono);
+            font-size: 0.73rem;
+            font-weight: 300;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+        }
+
+        select:hover, select:focus { border-color: var(--accent); }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 18px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-family: var(--ff-head);
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 0.03em;
+            transition: all 0.18s;
+            white-space: nowrap;
+            text-decoration: none;
+        }
+
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .btn-primary { background: var(--accent); color: #0c0e14; }
+        .btn-primary:hover:not(:disabled) {
+            filter: brightness(1.08);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 18px var(--accent-glow);
+        }
+
+        .btn-dl {
+            background: var(--success-dim);
+            color: var(--success);
+            border: 1px solid rgba(34,197,94,0.2);
+        }
+        .btn-dl:hover { background: rgba(34,197,94,0.2); }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            width: 12px; height: 12px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        .jobs-card { display: none; }
+        .jobs-card.show { display: block; animation-delay: 0.05s; }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead tr { border-bottom: 1px solid var(--border); }
+
+        th {
+            padding: 11px 16px;
+            font-family: var(--ff-head);
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 13px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            font-size: 0.78rem;
+        }
+
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr { transition: background 0.12s; }
+        tbody tr:hover { background: rgba(255,255,255,0.018); }
+        [data-theme="light"] tbody tr:hover { background: rgba(0,0,0,0.02); }
+
+        .td-file {
+            font-family: var(--ff-head);
+            font-weight: 600;
+            font-size: 0.83rem;
+            max-width: 190px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .td-model { font-size: 0.7rem; color: var(--text-dim); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .prog { min-width: 130px; }
+
+        .prog-track {
+            height: 3px;
+            background: var(--bg-3);
+            border-radius: 99px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+
+        .prog-fill {
+            height: 100%;
+            border-radius: 99px;
+            background: var(--accent);
+            transition: width 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prog-fill.done { background: var(--success); }
+
+        @keyframes shimmer {
+            0%   { transform: translateX(-150%); }
+            100% { transform: translateX(250%); }
+        }
+
+        .prog-fill.active::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+
+        .prog-count { font-size: 0.67rem; color: var(--text-dim); }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px 3px 6px;
+            border-radius: 99px;
+            font-family: var(--ff-head);
+            font-weight: 600;
+            font-size: 0.65rem;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+
+        .badge-dot { width: 5px; height: 5px; border-radius: 50%; }
+
+        .badge.processing { background: var(--blue-dim);    color: #60a5fa; }
+        .badge.processing .badge-dot { background: #60a5fa; }
+        .badge.queued     { background: var(--bg-3);        color: var(--text-dim); }
+        .badge.queued     .badge-dot { background: var(--text-dim); }
+        .badge.done       { background: var(--success-dim); color: var(--success); }
+        .badge.done       .badge-dot { background: var(--success); }
+        .badge.error      { background: var(--danger-dim);  color: var(--danger); }
+        .badge.error      .badge-dot { background: var(--danger); }
+
+        .td-date { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; }
+        .err-msg { font-size: 0.7rem; color: var(--danger); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .tip {
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 15px 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            font-size: 0.73rem;
+            color: var(--text-dim);
+            line-height: 1.65;
+            animation: fade-up 0.4s 0.1s ease both;
+        }
+
+        .tip-icon { flex-shrink: 0; }
+        .tip a { color: var(--accent); text-decoration: none; }
+        .tip a:hover { text-decoration: underline; }
+        .tip strong { color: var(--text); font-weight: 500; }
+
+        .toast-container {
+            position: fixed;
+            bottom: 22px;
+            right: 22px;
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            min-width: 250px;
+            max-width: 320px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.78rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+            pointer-events: all;
+            animation: toast-in 0.28s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+
+        @keyframes toast-in  { from { transform: translateX(16px); opacity: 0; } }
+        @keyframes toast-out { to   { transform: translateX(16px); opacity: 0; } }
+        .toast.leaving { animation: toast-out 0.22s ease forwards; }
+
+        .toast-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .toast.success .toast-dot { background: var(--success); box-shadow: 0 0 7px var(--success); }
+        .toast.danger  .toast-dot { background: var(--danger);  box-shadow: 0 0 7px var(--danger); }
+        .toast.info    .toast-dot { background: var(--accent);  box-shadow: 0 0 7px var(--accent); }
+
+        .toast-close {
+            margin-left: auto;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 17px;
+            line-height: 1;
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 600px) {
+            .nav-inner, main { padding-left: 16px; padding-right: 16px; }
+            .card-body { padding: 20px 18px; }
+            th:nth-child(2), td:nth-child(2),
+            th:nth-child(5), td:nth-child(5) { display: none; }
+        }
     </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg sticky-top mb-4">
-    <div class="container" style="max-width:900px;">
-        <span class="navbar-brand fw-semibold">
-            <i class="bi bi-cpu text-primary me-2"></i>Product Describer
-        </span>
-        <div class="ms-auto d-flex align-items-center gap-3">
-            <span class="hint" id="ollamaStatus">
-                <span class="ollama-dot" id="ollamaDot"></span>
-                <span id="ollamaLabel">Kontrollerar Ollama...</span>
-            </span>
-            <button class="theme-toggle" onclick="toggleTheme()">
-                <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
-            </button>
+
+<nav>
+    <div class="nav-inner">
+        <div class="logo">
+            <div class="logo-mark">⚙</div>
+            Product Describer
+        </div>
+        <div class="nav-right">
+            <div class="status-pill">
+                <span class="status-dot" id="ollamaDot"></span>
+                <span id="ollamaLabel">Kontrollerar…</span>
+            </div>
+            <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Byt tema"></button>
         </div>
     </div>
 </nav>
 
-<div class="container py-2" style="max-width:900px;">
+<main>
+    <div class="card">
+        <div class="card-body">
+            <div class="section-title">Ladda upp produktlista</div>
 
-    <!-- Upload card -->
-    <div class="card mb-4">
-        <div class="card-body p-4">
-            <h5 class="card-title mb-3">Ladda upp produktlista</h5>
             <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-                <i class="bi bi-file-earmark-spreadsheet d-block mb-3"></i>
-                <div class="fw-medium mb-1">Dra och släpp CSV-fil här</div>
-                <div class="text-muted" style="font-size:.875rem;">eller klicka för att välja fil</div>
-                <div class="mt-2 hint">Kolumner: Site, Product, Price (SEK), Link</div>
+                <span class="drop-icon">📄</span>
+                <div class="drop-title">Dra och släpp CSV-fil här</div>
+                <div class="drop-sub">eller klicka för att välja fil</div>
+                <span class="drop-tag">Site · Product · Price (SEK) · Link</span>
             </div>
-            <input type="file" id="fileInput" accept=".csv" class="d-none" onchange="handleFile(this.files[0])">
+            <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
 
-            <div id="fileInfo" class="mt-3 d-none">
-                <div class="d-flex align-items-center gap-3 flex-wrap">
-                    <i class="bi bi-file-earmark-text fs-4 text-primary flex-shrink-0"></i>
-                    <div class="flex-grow-1">
-                        <div class="fw-medium" id="fileName"></div>
-                        <div class="hint" id="fileRows"></div>
-                    </div>
-                    <div class="d-flex gap-2 align-items-center flex-wrap">
-                        <select class="form-select form-select-sm" id="modelSelect" style="width:auto;">
-                            <option value="{{ default_model }}">{{ default_model }}</option>
-                        </select>
-                        <select class="form-select form-select-sm" id="workersSelect" style="width:auto;" title="Parallella förfrågningar">
-                            <option value="1">1 worker</option>
-                            <option value="2" selected>2 workers</option>
-                            <option value="4">4 workers</option>
-                        </select>
-                        <button class="btn btn-primary" id="submitBtn" onclick="submitJob()">
-                            <i class="bi bi-play-fill me-1"></i>Generera
-                        </button>
+            <div class="file-info" id="fileInfo">
+                <div class="file-meta">
+                    <div class="file-icon-box">📊</div>
+                    <div>
+                        <div class="file-name" id="fileName"></div>
+                        <div class="file-sub" id="fileRows"></div>
+                        <div class="file-sub file-estimate" id="timeEstimate"></div>
                     </div>
                 </div>
-                <div class="mt-2 hint" id="timeEstimate"></div>
+                <div class="file-controls">
+                    <select id="modelSelect">
+                        <option value="{{ default_model }}">{{ default_model }}</option>
+                    </select>
+                    <select id="workersSelect" title="Parallella förfrågningar">
+                        <option value="1">1 worker</option>
+                        <option value="2" selected>2 workers</option>
+                        <option value="4">4 workers</option>
+                    </select>
+                    <button class="btn btn-primary" id="submitBtn" onclick="submitJob()">
+                        <span>▶</span> Generera
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Jobs -->
-    <div id="jobsCard" class="card d-none">
-        <div class="card-header">
-            <i class="bi bi-list-task me-1"></i>Jobb
-        </div>
-        <div class="table-responsive">
-            <table class="table mb-0">
+    <div class="card jobs-card" id="jobsCard">
+        <div class="card-header">Jobb</div>
+        <div class="table-wrap">
+            <table>
                 <thead>
                     <tr>
                         <th>Fil</th>
@@ -122,35 +594,32 @@
         </div>
     </div>
 
-    <!-- Claude tip -->
-    <div class="card mt-4 border-0 bg-body-secondary">
-        <div class="card-body py-3">
-            <i class="bi bi-lightbulb text-warning me-2"></i>
-            <span class="hint">
-                <strong>Tips:</strong> Ladda ner den färdiga CSV-filen och ladda upp den till
-                <a href="https://claude.ai" target="_blank" rel="noopener">Claude.ai</a>
-                för att finputsa beskrivningar som inte håller måttet — ingår i ditt Pro-abonnemang.
-            </span>
-        </div>
+    <div class="tip">
+        <span class="tip-icon">💡</span>
+        <span>
+            <strong>Tips:</strong> Ladda ner den färdiga CSV:n och ladda upp den till
+            <a href="https://claude.ai" target="_blank" rel="noopener">Claude.ai</a>
+            för att finputsa beskrivningar — ingår i ditt Pro-abonnemang.
+        </span>
     </div>
-</div>
+</main>
 
-<div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<div class="toast-container" id="toastContainer"></div>
+
 <script>
 let selectedFile = null;
 let pollTimer = null;
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 function toggleTheme() {
-    const next = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-bs-theme', next);
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
     updateThemeIcon();
 }
 function updateThemeIcon() {
-    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-    document.getElementById('themeIcon').className = dark ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill';
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.getElementById('themeBtn').textContent = dark ? '☀' : '☾';
 }
 updateThemeIcon();
 
@@ -161,15 +630,15 @@ async function checkOllama() {
     try {
         const d = await fetch('/api/status').then(r => r.json());
         if (d.ollama) {
-            dot.className = 'ollama-dot ok';
+            dot.className = 'status-dot ok';
             label.textContent = 'Ollama ansluten';
             loadModels();
         } else {
-            dot.className = 'ollama-dot err';
-            label.textContent = `Ollama ej tillgänglig (${d.ollama_url})`;
+            dot.className = 'status-dot err';
+            label.textContent = 'Ollama ej tillgänglig';
         }
     } catch {
-        dot.className = 'ollama-dot err';
+        dot.className = 'status-dot err';
         label.textContent = 'Ollama ej tillgänglig';
     }
 }
@@ -179,9 +648,14 @@ async function loadModels() {
     if (!d.models.length) return;
     const sel = document.getElementById('modelSelect');
     const current = sel.value;
-    sel.innerHTML = d.models.map(m =>
-        `<option value="${esc(m)}" ${m === current ? 'selected' : ''}>${esc(m)}</option>`
-    ).join('');
+    sel.innerHTML = '';
+    d.models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === current) opt.selected = true;
+        sel.appendChild(opt);
+    });
 }
 
 // ── Drag-and-drop ──────────────────────────────────────────────────────────
@@ -194,31 +668,35 @@ dropZone.addEventListener('drop', e => {
     if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
 
+document.getElementById('workersSelect').addEventListener('change', () => {
+    if (selectedFile) handleFile(selectedFile);
+});
+
 function handleFile(file) {
+    if (!file) return;
     if (!file.name.toLowerCase().endsWith('.csv')) { showToast('Välj en CSV-fil', 'danger'); return; }
     selectedFile = file;
     const rows = Math.round(file.size / 80);
     const workers = parseInt(document.getElementById('workersSelect').value);
-    const secPerItem = 3 / workers;
-    const minutes = Math.round(rows * secPerItem / 60);
+    const minutes = Math.round(rows * (3 / workers) / 60);
     document.getElementById('fileName').textContent = file.name;
     document.getElementById('fileRows').textContent =
-        `~${rows.toLocaleString('sv-SE')} rader · ${(file.size / 1024).toFixed(0)} KB`;
+        '~' + rows.toLocaleString('sv-SE') + ' rader · ' + (file.size / 1024).toFixed(0) + ' KB';
     document.getElementById('timeEstimate').textContent =
-        `Ungefärlig tid: ${minutes < 60 ? minutes + ' min' : Math.round(minutes/60) + ' h'} med ${workers} worker(s) — lokalt, gratis`;
-    document.getElementById('fileInfo').classList.remove('d-none');
+        '≈ ' + (minutes < 60 ? minutes + ' min' : Math.round(minutes / 60) + ' h') +
+        ' med ' + workers + ' worker(s) — lokalt, gratis';
+    document.getElementById('fileInfo').classList.add('show');
 }
-
-document.getElementById('workersSelect').addEventListener('change', () => {
-    if (selectedFile) handleFile(selectedFile);
-});
 
 // ── Submit ─────────────────────────────────────────────────────────────────
 async function submitJob() {
     if (!selectedFile) return;
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Startar...';
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    btn.textContent = ' Startar…';
+    btn.prepend(spinner);
 
     const form = new FormData();
     form.append('file', selectedFile);
@@ -229,9 +707,9 @@ async function submitJob() {
         const r = await fetch('/api/upload', { method: 'POST', body: form });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || 'Fel vid uppladdning');
-        showToast(`Startat — ${d.total.toLocaleString('sv-SE')} produkter`, 'success');
+        showToast('Startat — ' + d.total.toLocaleString('sv-SE') + ' produkter', 'success');
         selectedFile = null;
-        document.getElementById('fileInfo').classList.add('d-none');
+        document.getElementById('fileInfo').classList.remove('show');
         document.getElementById('fileInput').value = '';
         loadJobs();
         startPolling();
@@ -239,7 +717,10 @@ async function submitJob() {
         showToast(e.message, 'danger');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Generera';
+        btn.textContent = '';
+        const icon = document.createElement('span');
+        icon.textContent = '▶';
+        btn.append(icon, ' Generera');
     }
 }
 
@@ -247,38 +728,95 @@ async function submitJob() {
 async function loadJobs() {
     const jobs = await fetch('/api/jobs').then(r => r.json()).catch(() => []);
     const card = document.getElementById('jobsCard');
-    if (!jobs.length) { card.classList.add('d-none'); return; }
-    card.classList.remove('d-none');
+    if (!jobs.length) { card.classList.remove('show'); return; }
+    card.classList.add('show');
 
-    document.getElementById('jobsTable').innerHTML = jobs.map(job => {
+    const tbody = document.getElementById('jobsTable');
+    tbody.textContent = '';
+
+    const statusMap = {
+        processing: ['processing', 'Bearbetar'],
+        queued:     ['queued',     'Köar'],
+        done:       ['done',       'Klar'],
+        error:      ['error',      'Fel'],
+    };
+
+    jobs.forEach(job => {
         const pct = job.total ? Math.round(job.succeeded / job.total * 100) : 0;
         const created = new Date(job.created_at).toLocaleString('sv-SE', {
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
-        const badgeMap = { processing: ['bg-primary','Bearbetar'], queued: ['bg-secondary','Köar'],
-                           done: ['bg-success','Klar'], error: ['bg-danger','Fel'] };
-        const [cls, lbl] = badgeMap[job.status] || ['bg-secondary', job.status];
-        const action = job.status === 'done'
-            ? `<a class="btn btn-sm btn-success" href="/api/jobs/${job.id}/download">
-                 <i class="bi bi-download me-1"></i>Ladda ner</a>`
-            : job.status === 'error'
-            ? `<span class="hint text-danger">${esc(job.error || 'Fel')}</span>`
-            : `<span class="hint">${pct}%</span>`;
+        const [cls, lbl] = statusMap[job.status] || ['queued', job.status];
+        const isDone = job.status === 'done';
+        const isActive = job.status === 'processing';
 
-        return `<tr class="job-row">
-            <td class="fw-medium">${esc(job.filename)}</td>
-            <td class="hint">${esc(job.model || '')}</td>
-            <td style="min-width:120px;">
-                <div class="progress mb-1">
-                    <div class="progress-bar ${job.status === 'done' ? 'bg-success' : ''}" style="width:${pct}%"></div>
-                </div>
-                <div class="hint">${job.succeeded.toLocaleString('sv-SE')} / ${job.total.toLocaleString('sv-SE')}</div>
-            </td>
-            <td><span class="badge ${cls}" style="font-size:.72rem;">${lbl}</span></td>
-            <td class="hint">${created}</td>
-            <td>${action}</td>
-        </tr>`;
-    }).join('');
+        const tr = document.createElement('tr');
+
+        // File
+        const tdFile = document.createElement('td');
+        tdFile.className = 'td-file';
+        tdFile.title = job.filename;
+        tdFile.textContent = job.filename;
+
+        // Model
+        const tdModel = document.createElement('td');
+        tdModel.className = 'td-model';
+        tdModel.textContent = job.model || '—';
+
+        // Progress
+        const tdProg = document.createElement('td');
+        const prog = document.createElement('div');
+        prog.className = 'prog';
+        const track = document.createElement('div');
+        track.className = 'prog-track';
+        const fill = document.createElement('div');
+        fill.className = 'prog-fill' + (isDone ? ' done' : '') + (isActive ? ' active' : '');
+        fill.style.width = pct + '%';
+        track.appendChild(fill);
+        const count = document.createElement('div');
+        count.className = 'prog-count';
+        count.textContent = job.succeeded.toLocaleString('sv-SE') + ' / ' + job.total.toLocaleString('sv-SE');
+        prog.append(track, count);
+        tdProg.appendChild(prog);
+
+        // Status badge
+        const tdStatus = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + cls;
+        const dot = document.createElement('span');
+        dot.className = 'badge-dot';
+        badge.append(dot, lbl);
+        tdStatus.appendChild(badge);
+
+        // Date
+        const tdDate = document.createElement('td');
+        tdDate.className = 'td-date';
+        tdDate.textContent = created;
+
+        // Action
+        const tdAction = document.createElement('td');
+        if (isDone) {
+            const a = document.createElement('a');
+            a.className = 'btn btn-dl';
+            a.href = '/api/jobs/' + job.id + '/download';
+            a.textContent = '↓ Ladda ner';
+            tdAction.appendChild(a);
+        } else if (job.status === 'error') {
+            const span = document.createElement('span');
+            span.className = 'err-msg';
+            span.title = job.error || 'Okänt fel';
+            span.textContent = job.error || 'Okänt fel';
+            tdAction.appendChild(span);
+        } else {
+            const span = document.createElement('span');
+            span.style.cssText = 'font-size:.7rem;color:var(--text-dim)';
+            span.textContent = pct + '%';
+            tdAction.appendChild(span);
+        }
+
+        tr.append(tdFile, tdModel, tdProg, tdStatus, tdDate, tdAction);
+        tbody.appendChild(tr);
+    });
 }
 
 function startPolling() {
@@ -293,24 +831,33 @@ function startPolling() {
     }, 4000);
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function esc(t) {
-    if (!t) return '';
-    const d = document.createElement('div');
-    d.textContent = t;
-    return d.innerHTML;
-}
-
-function showToast(message, type = 'info') {
+// ── Toast (DOM-only, no innerHTML) ─────────────────────────────────────────
+function showToast(message, type) {
+    type = type || 'info';
     const c = document.getElementById('toastContainer');
     const el = document.createElement('div');
-    el.className = `toast align-items-center text-white bg-${type} border-0`;
-    el.setAttribute('role', 'alert');
-    el.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+    el.className = 'toast ' + type;
+
+    const dot = document.createElement('span');
+    dot.className = 'toast-dot';
+
+    const text = document.createElement('span');
+    text.textContent = message;
+
+    const btn = document.createElement('button');
+    btn.className = 'toast-close';
+    btn.textContent = '×';
+    btn.addEventListener('click', () => dismissToast(el));
+
+    el.append(dot, text, btn);
     c.appendChild(el);
-    new bootstrap.Toast(el, { delay: 4000 }).show();
-    el.addEventListener('hidden.bs.toast', () => el.remove());
+    setTimeout(() => dismissToast(el), 4200);
+}
+
+function dismissToast(el) {
+    if (!el || el.classList.contains('leaving')) return;
+    el.classList.add('leaving');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
