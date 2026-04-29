@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import csv
 import json
+import logging
 import os
 import threading
 import uuid
@@ -10,6 +11,9 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_file
 
 from main import OLLAMA_MODEL, OLLAMA_URL, generate_description, load_csv, ollama_available
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("describer")
 
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
@@ -57,30 +61,41 @@ def _process(job_id: str, workers: int, model: str, ollama_url: str) -> None:
             job["total"] = len(rows)
 
         results: dict[int, dict[str, str]] = {}
+        errors: list[str] = []
         import concurrent.futures
 
         def do(idx_row):
             idx, row = idx_row
             try:
-                return idx, generate_description(
+                parts = generate_description(
                     row.get("Site", ""),
                     row.get("Product", ""),
                     row.get("Price (SEK)", ""),
                     ollama_url=ollama_url,
                     model=model,
                 )
-            except Exception:
-                return idx, {"beskrivning": "", "varför": ""}
+                if not parts.get("beskrivning"):
+                    log.warning("job=%s row=%s empty beskrivning for %r", job_id, idx, row.get("Product", "")[:60])
+                return idx, parts, None
+            except Exception as e:
+                log.exception("job=%s row=%s failed for %r", job_id, idx, row.get("Product", "")[:60])
+                return idx, {"beskrivning": "", "varför": ""}, f"{type(e).__name__}: {e}"
 
+        log.info("job=%s starting %d rows with model=%s workers=%d", job_id, len(rows), model, workers)
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(do, (i, r)): i for i, r in enumerate(rows)}
             for fut in concurrent.futures.as_completed(futures):
-                idx, parts = fut.result()
+                idx, parts, err = fut.result()
                 results[idx] = parts
+                if err and len(errors) < 10:
+                    errors.append(err)
                 with _lock:
                     job["succeeded"] = sum(1 for v in results.values() if v.get("beskrivning"))
+                    if errors:
+                        job["last_errors"] = errors
                 if len(results) % 50 == 0:
                     _save()
+        log.info("job=%s done — %d/%d succeeded", job_id, job["succeeded"], len(rows))
 
         output_path = OUTPUT_DIR / f"{job_id}_med_beskrivning.csv"
         out_fields = fieldnames + ["Beskrivning", "Varför"]

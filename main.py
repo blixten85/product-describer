@@ -65,10 +65,15 @@ def _parse_response(content: str) -> dict[str, str]:
     return {"beskrivning": text, "varför": ""}
 
 
+_log = logging.getLogger("describer.generate")
+_logged_first_response = False
+
+
 def generate_description(site: str, product: str, price: str,
                           ollama_url: str = OLLAMA_URL,
                           model: str = OLLAMA_MODEL) -> dict[str, str]:
     """Generate a description+why pair. Returns dict with 'beskrivning' and 'varför'."""
+    global _logged_first_response
     resp = requests.post(
         f"{ollama_url}/api/chat",
         json={
@@ -78,13 +83,19 @@ def generate_description(site: str, product: str, price: str,
                 {"role": "user", "content": user_message(site, product, price)},
             ],
             "stream": False,
-            "format": "json",
             "options": {"temperature": 0.8},
         },
         timeout=120,
     )
     resp.raise_for_status()
-    return _parse_response(resp.json()["message"]["content"])
+    payload = resp.json()
+    content = payload.get("message", {}).get("content", "")
+    if not _logged_first_response:
+        _logged_first_response = True
+        _log.info("first ollama response (truncated): %r", content[:300])
+    if not content:
+        _log.warning("ollama returned empty content; full payload: %r", payload)
+    return _parse_response(content)
 
 
 def load_csv(path: str) -> tuple[list[dict], list[str]]:
