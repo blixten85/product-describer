@@ -10,7 +10,17 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
 
-from main import OLLAMA_MODEL, OLLAMA_URL, generate_description, load_csv, ollama_available
+from main import (
+    OLLAMA_MODEL,
+    OLLAMA_URL,
+    SCRAPER_URL,
+    _process_one,
+    fetch_products_missing_description,
+    generate_description,
+    load_csv,
+    ollama_available,
+    push_description,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("describer")
@@ -222,6 +232,54 @@ def download_job(job_id: str):
         download_name=f"{stem}_med_beskrivning.csv",
         mimetype="text/csv",
     )
+
+
+def _sync_loop() -> None:
+    import concurrent.futures
+    import time
+
+    interval = int(os.getenv("SYNC_INTERVAL", "300"))
+    limit = int(os.getenv("SYNC_LIMIT", "50"))
+    workers = int(os.getenv("SYNC_WORKERS", "2"))
+    scraper_url = os.getenv("SCRAPER_URL", SCRAPER_URL)
+    ollama_url = os.getenv("OLLAMA_URL", OLLAMA_URL)
+    model = os.getenv("OLLAMA_MODEL", OLLAMA_MODEL)
+    log.info("sync worker starting: scraper=%s interval=%ds workers=%d", scraper_url, interval, workers)
+
+    while True:
+        try:
+            products = fetch_products_missing_description(scraper_url, limit)
+        except Exception as e:
+            log.error("sync: kunde inte hämta från scrapern: %s", e)
+            products = []
+
+        if products:
+            log.info("sync: hämtade %d produkter utan beskrivning", len(products))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = [pool.submit(_process_one, p, ollama_url, model) for p in products]
+                for fut in concurrent.futures.as_completed(futures):
+                    pid, parts, err = fut.result()
+                    if err or not parts or not parts.get("beskrivning"):
+                        log.warning("sync: hoppar över produkt %s: %s", pid, err or "tomt svar")
+                        continue
+                    try:
+                        push_description(scraper_url, pid, parts["beskrivning"], parts.get("varför", ""))
+                        log.info("sync: beskrev produkt %s", pid)
+                    except Exception as e:
+                        log.error("sync: kunde inte spara beskrivning för %s: %s", pid, e)
+        time.sleep(interval)
+
+
+def _maybe_start_sync_worker() -> None:
+    if os.getenv("SYNC_ENABLED", "").lower() not in ("1", "true", "yes"):
+        return
+    if not os.getenv("SCRAPER_URL"):
+        log.warning("SYNC_ENABLED is set but SCRAPER_URL is missing — sync worker not started")
+        return
+    threading.Thread(target=_sync_loop, daemon=True, name="sync-worker").start()
+
+
+_maybe_start_sync_worker()
 
 
 if __name__ == "__main__":

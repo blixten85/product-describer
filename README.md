@@ -69,22 +69,24 @@ See the comments in `compose.yml` for AMD ROCm (iGPU workaround) and NVIDIA.
 
 ## Sync mode (scraper integration)
 
-The optional `product-describer-sync` service polls the scraper API for products
-that have no description, generates descriptions via Ollama, and writes them
-back to the scraper.
+Set `SYNC_ENABLED=true` and the main container also runs a background
+worker that polls the [scraper](https://github.com/blixten85/scraper) API
+for products without descriptions, generates them via Ollama, and writes
+them back. No extra container needed.
 
 ```bash
 # .env (or shell)
+export SYNC_ENABLED=true
 export SCRAPER_URL=https://scraper.example.com
 export SYNC_INTERVAL=300   # seconds between polls
 
-docker compose --profile sync up -d
+docker compose up -d
 ```
 
 The worker reads the scraper's API key from
-`${DOCKER}/scraper/credentials/api_key` (mounted read-only). One-shot
-invocation:
+`${DOCKER}/scraper/credentials/api_key` (mounted read-only). For a
+one-shot run from the CLI:
 
 ```bash
-docker compose run --rm product-describer-sync python main.py sync --limit 50
+docker compose exec product-describer python main.py sync --limit 50
 ```
