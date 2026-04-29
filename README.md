@@ -8,7 +8,12 @@
 Generates Swedish product descriptions using a local LLM via [Ollama](https://ollama.com) — completely free, runs on your own server.
 
 **Input:** CSV file with columns `Site, Product, Price (SEK), Link`  
-**Output:** Same CSV with an extra column `Beskrivning` (Description)
+**Output:** Same CSV with two extra columns — `Beskrivning` (description) and `Varför` (why you'd want it)
+
+Two modes are supported:
+
+- **CSV** — drag and drop in the web UI, or run `python main.py run products.csv`.
+- **Sync** — pull products directly from the [scraper](https://github.com/blixten85/scraper) API, generate descriptions, and write them back. Started with a docker-compose profile (see below).
 
 ## Getting started
 
@@ -60,3 +65,25 @@ With 2–4 workers at ~3 sec/item, 8,000 items takes roughly 3–4 hours. Best r
 ## GPU (optional)
 
 See the comments in `compose.yml` for AMD ROCm (iGPU workaround) and NVIDIA.
+
+## Sync mode (scraper integration)
+
+The optional `product-describer-sync` service polls the scraper API for products
+that have no description, generates descriptions via Ollama, and writes them
+back to the scraper.
+
+```bash
+# .env (or shell)
+export SCRAPER_URL=https://scraper.example.com
+export SYNC_INTERVAL=300   # seconds between polls
+
+docker compose --profile sync up -d
+```
+
+The worker reads the scraper's API key from
+`${DOCKER}/scraper/credentials/api_key` (mounted read-only). One-shot
+invocation:
+
+```bash
+docker compose run --rm product-describer-sync python main.py sync --limit 50
+```
