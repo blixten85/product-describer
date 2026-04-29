@@ -5,14 +5,17 @@ services:
     ports:
       - "5000:5000"
     environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
       - OLLAMA_URL=http://product-describer-ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
       # Set SYNC_ENABLED=true to also run the scraper sync worker as a
       # background thread inside this container. Requires SCRAPER_URL.
-      - SYNC_ENABLED=${SYNC_ENABLED:-false}
-      - SCRAPER_URL=${SCRAPER_URL:-}
+      - SYNC_ENABLED=${SYNC_ENABLED}
+      - SCRAPER_URL=${SCRAPER_URL}
       - SCRAPER_API_KEY_FILE=/credentials/api_key
-      - SYNC_INTERVAL=${SYNC_INTERVAL:-300}
+      - SYNC_INTERVAL=${SYNC_INTERVAL}
     volumes:
       - ${DOCKER}/product-describer:/app/uploads
       - ${DOCKER}/product-describer:/app/outputs
@@ -36,6 +39,8 @@ services:
     container_name: product-describer-ollama
     image: ollama/ollama        # CPU (standard)
     # image: ollama/ollama:rocm # AMD ROCm — avkommentera för GPU-försök (se nedan)
+    environment:
+      - TZ=${TZ}
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
@@ -55,7 +60,7 @@ services:
 
 networks:
   scraper:
-    name: ${SCRAPER_NETWORK:-scraper_default}
+    name: ${SCRAPER_NETWORK}
     external: true
 
 volumes:
