@@ -77,11 +77,18 @@ them back. No extra container needed.
 ```bash
 # .env (or shell)
 export SYNC_ENABLED=true
-export SCRAPER_URL=https://scraper.example.com
+# Internal docker hostname; the describer joins scraper's compose network
+# so it can reach the API directly without going through any reverse proxy.
+export SCRAPER_URL=http://scraper:8000
 export SYNC_INTERVAL=300   # seconds between polls
 
 docker compose up -d
 ```
+
+If your scraper compose stack uses a non-default network name (anything
+other than `scraper_default`), find it with
+`docker inspect scraper -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'`
+and set `SCRAPER_NETWORK=<that-name>` in your `.env`.
 
 The worker reads the scraper's API key from
 `${DOCKER}/scraper/credentials/api_key` (mounted read-only). For a

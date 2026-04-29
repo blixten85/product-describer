@@ -23,6 +23,13 @@ services:
       - no-new-privileges:true
     depends_on:
       - product-describer-ollama
+    networks:
+      - default
+      # Joins the scraper's docker network so SCRAPER_URL can use the
+      # internal hostname (http://scraper:8000) without going through
+      # the public reverse proxy. Override SCRAPER_NETWORK in .env if
+      # the scraper compose stack uses a non-default network name.
+      - scraper
     restart: unless-stopped
 
   product-describer-ollama:
@@ -45,6 +52,11 @@ services:
     # group_add:
     #   - video
     #   - render
+
+networks:
+  scraper:
+    name: ${SCRAPER_NETWORK:-scraper_default}
+    external: true
 
 volumes:
   ollama_data:
