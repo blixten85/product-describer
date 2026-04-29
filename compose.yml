@@ -16,6 +16,28 @@ services:
       - product-describer-ollama
     restart: unless-stopped
 
+  # Optional worker that polls the scraper API and writes descriptions back.
+  # Start with: `docker compose --profile sync up -d`
+  # Requires SCRAPER_URL (e.g. https://scraper.example.com) to be reachable
+  # and a readable api_key file mounted at /credentials/api_key.
+  product-describer-sync:
+    container_name: product-describer-sync
+    image: ghcr.io/blixten85/product-describer:latest
+    profiles: ["sync"]
+    command: ["python", "main.py", "sync", "--watch", "--interval", "${SYNC_INTERVAL:-300}"]
+    environment:
+      - OLLAMA_URL=http://product-describer-ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - SCRAPER_URL=${SCRAPER_URL:?set SCRAPER_URL to your scraper API base URL}
+      - SCRAPER_API_KEY_FILE=/credentials/api_key
+    volumes:
+      - ${DOCKER}/scraper/credentials:/credentials:ro
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - product-describer-ollama
+    restart: unless-stopped
+
   product-describer-ollama:
     container_name: product-describer-ollama
     image: ollama/ollama        # CPU (standard)

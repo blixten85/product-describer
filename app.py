@@ -56,7 +56,7 @@ def _process(job_id: str, workers: int, model: str, ollama_url: str) -> None:
         with _lock:
             job["total"] = len(rows)
 
-        results: dict[int, str] = {}
+        results: dict[int, dict[str, str]] = {}
         import concurrent.futures
 
         def do(idx_row):
@@ -70,25 +70,27 @@ def _process(job_id: str, workers: int, model: str, ollama_url: str) -> None:
                     model=model,
                 )
             except Exception:
-                return idx, ""
+                return idx, {"beskrivning": "", "varför": ""}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(do, (i, r)): i for i, r in enumerate(rows)}
             for fut in concurrent.futures.as_completed(futures):
-                idx, desc = fut.result()
-                results[idx] = desc
+                idx, parts = fut.result()
+                results[idx] = parts
                 with _lock:
-                    job["succeeded"] = len(results)
+                    job["succeeded"] = sum(1 for v in results.values() if v.get("beskrivning"))
                 if len(results) % 50 == 0:
                     _save()
 
         output_path = OUTPUT_DIR / f"{job_id}_med_beskrivning.csv"
-        out_fields = fieldnames + ["Beskrivning"]
+        out_fields = fieldnames + ["Beskrivning", "Varför"]
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=out_fields)
             writer.writeheader()
             for i, row in enumerate(rows):
-                row["Beskrivning"] = results.get(i, "")
+                parts = results.get(i, {"beskrivning": "", "varför": ""})
+                row["Beskrivning"] = parts.get("beskrivning", "")
+                row["Varför"] = parts.get("varför", "")
                 writer.writerow(row)
 
         with _lock:
