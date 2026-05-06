@@ -25,10 +25,10 @@ jobs:
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
           steps.metadata.outputs.update-type == 'version-update:semver-major')
-        run: gh pr merge --admin --delete-branch --squash "$PR_URL"
+        run: gh pr merge --auto --delete-branch --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Auto-merge patch and minor pip updates
         if: |
@@ -38,7 +38,7 @@ jobs:
         run: gh pr merge --auto --delete-branch --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
   security-autofix:
     runs-on: ubuntu-latest
@@ -50,7 +50,7 @@ jobs:
         run: gh pr merge --auto --squash --delete-branch "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
   claude:
     runs-on: ubuntu-latest
@@ -62,4 +62,4 @@ jobs:
           gh pr edit "$PR_URL" --add-label "auto-merge"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
