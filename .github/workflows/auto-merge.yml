@@ -2,7 +2,7 @@ name: Bot Auto-Merge
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 permissions:
   contents: write
@@ -67,4 +67,19 @@ jobs:
           gh pr edit "$PR_URL" --add-label "auto-merge"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+
+  trigger-build:
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.merged == true && (
+        startsWith(github.head_ref, 'claude/') ||
+        startsWith(github.head_ref, 'codex/') ||
+        contains(github.head_ref, 'alert-autofix') ||
+        contains(github.head_ref, 'copilot/')
+      )
+    steps:
+      - name: Dispatch docker.yml on main to run Trivy scan
+        run: gh workflow run docker.yml --repo ${{ github.repository }} --ref main
+        env:
           GH_TOKEN: ${{ github.token }}
