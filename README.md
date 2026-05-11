@@ -6,6 +6,7 @@
 [![Image](https://ghcr-badge.egpl.dev/blixten85/product-describer/size?color=blue&label=image)](https://github.com/blixten85/product-describer/pkgs/container/product-describer)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CodeRabbit](https://img.shields.io/coderabbit/prs/github/blixten85/product-describer)](https://coderabbit.ai)
+![Downloads](https://img.shields.io/github/downloads/api-apoteket/product-describer/total)
 
 Generates Swedish product descriptions using a local LLM via [Ollama](https://ollama.com) — completely free, runs on your own server.
 
