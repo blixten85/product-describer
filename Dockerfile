@@ -1,11 +1,11 @@
 FROM python:3.12-alpine
 
-RUN apk upgrade --no-cache xz-libs
+RUN apk update && apk upgrade --no-cache xz-libs && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir "pip>=26.1" && \
+RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY main.py app.py ./
