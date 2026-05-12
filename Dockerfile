@@ -1,6 +1,6 @@
 FROM python:3.12-alpine
 
-RUN apk update && apk upgrade --no-cache xz-libs && rm -rf /var/cache/apk/*
+RUN apk update && apk upgrade && apk add --no-cache xz-libs && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
