@@ -1,6 +1,6 @@
 FROM python:3.12-alpine
 
-RUN apk update && apk upgrade --no-cache xz-libs && rm -rf /var/cache/apk/*
+RUN apk update && apk upgrade && apk add --no-cache xz-libs && rm -rf /var/cache/apk/*
 
 WORKDIR /app
 
@@ -15,4 +15,4 @@ RUN mkdir -p uploads outputs
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "300", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "4", "--timeout", "300", "app:app"]
