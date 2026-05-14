@@ -1,29 +1,24 @@
-name: Feature Request
-description: Suggest a new feature or improvement
-labels: [enhancement]
+name: Feature request
+description: Suggest a focused improvement
+title: "feat: "
+labels:
+  - enhancement
 body:
-  - type: markdown
-    attributes:
-      value: Thanks for the suggestion!
-
   - type: textarea
     id: problem
     attributes:
-      label: Problem or motivation
-      description: What problem does this solve? Why is it needed?
+      label: Problem
+      description: What problem should this solve?
     validations:
       required: true
-
   - type: textarea
-    id: solution
+    id: proposal
     attributes:
       label: Proposed solution
-      description: Describe what you'd like to see.
+      description: Describe the smallest useful change.
     validations:
       required: true
-
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Any other approaches you've thought of?
