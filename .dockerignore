@@ -1,0 +1,14 @@
+.env
+.env.*
+*.env
+uploads/
+outputs/
+jobs.json
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.github/
+tests/
+*.md
+LICENSE

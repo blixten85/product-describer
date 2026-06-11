@@ -30,9 +30,12 @@ services:
     environment:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
-      SCRAPER_URL: ${SCRAPER_URL}
+      SCRAPER_URL: ${SCRAPER_URL:-http://scraper:8000}
       SCRAPER_API_KEY: ${SCRAPER_API_KEY:-}
       SCRAPER_API_KEY_FILE: ${SCRAPER_API_KEY_FILE:-}
+    networks:
+      - default
+      - scraper_net
     depends_on:
       - ollama
 
@@ -40,3 +43,9 @@ volumes:
   ollama_data:
   uploads:
   outputs:
+
+networks:
+  default:
+  scraper_net:
+    external: true
+    name: ${SCRAPER_NETWORK:-scraper_default}
