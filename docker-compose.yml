@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    container_name: product-describer
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+    volumes:
+      - uploads:/app/uploads
+      - outputs:/app/outputs
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: product-describer-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+
+  sync:
+    build: .
+    container_name: product-describer-sync
+    restart: unless-stopped
+    profiles: [sync]
+    command: ["python", "main.py", "sync", "--watch"]
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      SCRAPER_URL: ${SCRAPER_URL}
+      SCRAPER_API_KEY: ${SCRAPER_API_KEY:-}
+      SCRAPER_API_KEY_FILE: ${SCRAPER_API_KEY_FILE:-}
+    depends_on:
+      - ollama
+
+volumes:
+  ollama_data:
+  uploads:
+  outputs:

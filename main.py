@@ -111,8 +111,8 @@ def load_csv(path: str) -> tuple[list[dict], list[str]]:
 
 def ollama_available(ollama_url: str = OLLAMA_URL) -> bool:
     try:
-        requests.get(f"{ollama_url}/api/tags", timeout=3)
-        return True
+        r = requests.get(f"{ollama_url}/api/tags", timeout=3)
+        return r.ok
     except Exception:
         return False
 

@@ -726,9 +726,13 @@ async function submitJob() {
 
 // ── Jobs ───────────────────────────────────────────────────────────────────
 async function loadJobs() {
+    return loadJobsAndMaybeStopPolling();
+}
+
+async function loadJobsAndMaybeStopPolling() {
     const jobs = await fetch('/api/jobs').then(r => r.json()).catch(() => []);
     const card = document.getElementById('jobsCard');
-    if (!jobs.length) { card.classList.remove('show'); return; }
+    if (!jobs.length) { card.classList.remove('show'); return jobs; }
     card.classList.add('show');
 
     const tbody = document.getElementById('jobsTable');
@@ -752,18 +756,15 @@ async function loadJobs() {
 
         const tr = document.createElement('tr');
 
-        // File
         const tdFile = document.createElement('td');
         tdFile.className = 'td-file';
         tdFile.title = job.filename;
         tdFile.textContent = job.filename;
 
-        // Model
         const tdModel = document.createElement('td');
         tdModel.className = 'td-model';
         tdModel.textContent = job.model || '—';
 
-        // Progress
         const tdProg = document.createElement('td');
         const prog = document.createElement('div');
         prog.className = 'prog';
@@ -779,7 +780,6 @@ async function loadJobs() {
         prog.append(track, count);
         tdProg.appendChild(prog);
 
-        // Status badge
         const tdStatus = document.createElement('td');
         const badge = document.createElement('span');
         badge.className = 'badge ' + cls;
@@ -788,12 +788,10 @@ async function loadJobs() {
         badge.append(dot, lbl);
         tdStatus.appendChild(badge);
 
-        // Date
         const tdDate = document.createElement('td');
         tdDate.className = 'td-date';
         tdDate.textContent = created;
 
-        // Action
         const tdAction = document.createElement('td');
         if (isDone) {
             const a = document.createElement('a');
@@ -817,13 +815,13 @@ async function loadJobs() {
         tr.append(tdFile, tdModel, tdProg, tdStatus, tdDate, tdAction);
         tbody.appendChild(tr);
     });
+    return jobs;
 }
 
 function startPolling() {
     if (pollTimer) return;
     pollTimer = setInterval(async () => {
-        await loadJobs();
-        const jobs = await fetch('/api/jobs').then(r => r.json()).catch(() => []);
+        const jobs = await loadJobsAndMaybeStopPolling();
         if (!jobs.some(j => j.status === 'processing' || j.status === 'queued')) {
             clearInterval(pollTimer);
             pollTimer = null;
@@ -862,10 +860,8 @@ function dismissToast(el) {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 checkOllama();
-loadJobs().then(() => {
-    fetch('/api/jobs').then(r => r.json()).then(jobs => {
-        if (jobs.some(j => j.status === 'processing' || j.status === 'queued')) startPolling();
-    }).catch(() => {});
+loadJobs().then(jobs => {
+    if (jobs && jobs.some(j => j.status === 'processing' || j.status === 'queued')) startPolling();
 });
 </script>
 </body>
