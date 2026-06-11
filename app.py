@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import concurrent.futures
 import csv
 import json
 import logging
@@ -48,8 +49,8 @@ def _load_from_disk() -> None:
 def _save() -> None:
     with _lock:
         jobs = list(_jobs.values())
-    with open(JOBS_FILE, "w") as f:
-        json.dump(jobs, f, indent=2)
+        with open(JOBS_FILE, "w") as f:
+            json.dump(jobs, f, indent=2)
 
 
 def _get_jobs() -> list[dict]:
@@ -72,7 +73,6 @@ def _process(job_id: str, workers: int, model: str, ollama_url: str) -> None:
 
         results: dict[int, dict[str, str]] = {}
         errors: list[str] = []
-        import concurrent.futures
 
         def do(idx_row):
             idx, row = idx_row
@@ -164,7 +164,7 @@ def upload():
         return jsonify({"error": "Måste vara en CSV-fil"}), 400
 
     model = request.form.get("model", os.getenv("OLLAMA_MODEL", OLLAMA_MODEL))
-    workers = int(request.form.get("workers", 2))
+    workers = max(1, min(8, int(request.form.get("workers", 2))))
     ollama_url = os.getenv("OLLAMA_URL", OLLAMA_URL)
 
     if not ollama_available(ollama_url):
