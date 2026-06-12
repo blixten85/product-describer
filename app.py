@@ -4,6 +4,7 @@ import csv
 import json
 import logging
 import os
+import re
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -31,8 +32,16 @@ OUTPUT_DIR = Path("outputs")
 JOBS_FILE = Path("jobs.json")
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+_FORMULA_PREFIX = re.compile(r"^[=+\-@\t\r]")
+
+
+def _safe_csv(value: str) -> str:
+    """Prevent CSV formula injection by prefixing dangerous leading characters."""
+    return "'" + value if _FORMULA_PREFIX.match(value) else value
 
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -114,8 +123,8 @@ def _process(job_id: str, workers: int, model: str, ollama_url: str) -> None:
             writer.writeheader()
             for i, row in enumerate(rows):
                 parts = results.get(i, {"beskrivning": "", "varför": ""})
-                row["Beskrivning"] = parts.get("beskrivning", "")
-                row["Varför"] = parts.get("varför", "")
+                row["Beskrivning"] = _safe_csv(parts.get("beskrivning", ""))
+                row["Varför"] = _safe_csv(parts.get("varför", ""))
                 writer.writerow(row)
 
         with _lock:

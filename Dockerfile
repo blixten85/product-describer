@@ -7,7 +7,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p uploads outputs
+RUN adduser --disabled-password --gecos '' appuser \
+    && mkdir -p uploads outputs \
+    && chown appuser:appuser uploads outputs
+
+USER appuser
 
 EXPOSE 5000
 
