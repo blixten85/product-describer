@@ -59,7 +59,7 @@ jobs:
 
   claude:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'claude/') && !github.event.pull_request.draft
+    if: startsWith(github.head_ref, 'claude/')
     steps:
       - name: Auto-merge Claude AI PRs once checks pass
         run: |
