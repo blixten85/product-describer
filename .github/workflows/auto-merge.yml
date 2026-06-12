@@ -59,10 +59,11 @@ jobs:
 
   claude:
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'claude/') && !github.event.pull_request.draft
+    if: startsWith(github.head_ref, 'claude/')
     steps:
       - name: Auto-merge Claude AI PRs once checks pass
         run: |
+          gh pr ready "$PR_URL" || true
           gh pr merge --auto --squash --delete-branch "$PR_URL"
           gh pr edit "$PR_URL" --add-label "auto-merge"
         env:
