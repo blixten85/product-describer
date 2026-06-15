@@ -19,7 +19,7 @@ Two modes are supported:
 ## Getting started
 
 ```bash
-# Place compose.yml on your server and run:
+# Place docker-compose.yml on your server and run:
 docker compose up -d
 
 # Pull the model once (~5 GB, only needed once)
@@ -54,7 +54,7 @@ docker exec product-describer-ollama ollama pull qwen2.5:7b
 
 The server has an **integrated AMD Barcelo GPU** (Vega/GCN-5) sharing system memory with the CPU.
 ROCm does not officially support iGPUs, but can be attempted with `HSA_OVERRIDE_GFX_VERSION=9.0.0` — uncomment
-the relevant lines in `compose.yml`. Without GPU, the model runs on CPU (AVX2):
+the relevant lines in `docker-compose.yml`. Without GPU, the model runs on CPU (AVX2):
 
 | Model | Speed (CPU) |
 |-------|-------------|
@@ -65,7 +65,7 @@ With 2–4 workers at ~3 sec/item, 8,000 items takes roughly 3–4 hours. Best r
 
 ## GPU (optional)
 
-See the comments in `compose.yml` for AMD ROCm (iGPU workaround) and NVIDIA.
+See the comments in `docker-compose.yml` for AMD ROCm (iGPU workaround) and NVIDIA.
 
 ## Sync mode (scraper integration)
 
@@ -90,8 +90,7 @@ other than `scraper_default`), find it with
 `docker inspect scraper -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'`
 and set `SCRAPER_NETWORK=<that-name>` in your `.env`.
 
-The worker reads the scraper's API key from
-`${DOCKER}/scraper/credentials/api_key` (mounted read-only). For a
+Set `SCRAPER_API_KEY=<your-key>` in `.env` (or point `SCRAPER_API_KEY_FILE` to the key file). For a
 one-shot run from the CLI:
 
 ```bash
