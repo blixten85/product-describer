@@ -34,13 +34,13 @@ jobs:
           if [ -d tests ]; then python -m pip install pytest && python -m pytest; else echo "No tests directory found"; fi
   docker:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     needs: python
     permissions:
       packages: write
     steps:
       - uses: actions/checkout@v6
       - uses: docker/login-action@v3
+        if: github.event_name == 'push'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -51,7 +51,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: |
             ghcr.io/blixten85/product-describer:latest
             ghcr.io/blixten85/product-describer:sha-${{ steps.sha.outputs.short }}
