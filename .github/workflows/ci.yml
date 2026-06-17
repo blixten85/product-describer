@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: docker/login-action@v3
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -51,7 +52,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
           tags: |
             ghcr.io/blixten85/product-describer:latest
             ghcr.io/blixten85/product-describer:sha-${{ steps.sha.outputs.short }}
