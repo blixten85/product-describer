@@ -11,11 +11,13 @@ import os
 import stat
 from pathlib import Path
 
+from cryptography.fernet import Fernet, InvalidToken
 from providers import AnthropicProvider, OpenAIProvider, ProviderChain, ProviderSpec
 
 CONFIG_DIR = Path(os.getenv("CONFIG_DIR", "config"))
 CREDENTIALS_DIR = CONFIG_DIR / "credentials"
 ORDER_FILE = CONFIG_DIR / "provider_order.json"
+MASTER_KEY_ENV_VAR = "PROVIDER_CONFIG_MASTER_KEY"
 
 PROVIDER_CLASSES = {
     "anthropic": AnthropicProvider,
@@ -28,15 +30,37 @@ DEFAULT_MODELS = {
 }
 
 
-def _validate_provider_name(provider_name: str) -> str:
-    if provider_name not in PROVIDER_CLASSES:
-        raise ValueError(f"Unknown provider: {provider_name}")
-    return provider_name
+_KEY_FILENAMES = {name: f"{name}_api_key" for name in PROVIDER_CLASSES}
 
 
 def _key_path(provider_name: str) -> Path:
-    provider_name = _validate_provider_name(provider_name)
-    return CREDENTIALS_DIR / f"{provider_name}_api_key"
+    if provider_name not in _KEY_FILENAMES:
+        raise ValueError(f"Unknown provider: {provider_name}")
+    return CREDENTIALS_DIR / _KEY_FILENAMES[provider_name]
+
+
+def _get_fernet() -> Fernet:
+    key = os.getenv(MASTER_KEY_ENV_VAR, "")
+    if not key:
+        raise RuntimeError(
+            f"Missing encryption key: set {MASTER_KEY_ENV_VAR} to a Fernet key."
+        )
+    return Fernet(key.encode())
+
+
+def _decrypt_stored_api_key(value: str) -> str:
+    raw = value.strip()
+    if not raw:
+        return ""
+    if not os.getenv(MASTER_KEY_ENV_VAR, ""):
+        # No master key configured means this file was never encrypted by
+        # set_api_key (which requires one) — it's a legacy plaintext file.
+        return raw
+    try:
+        return _get_fernet().decrypt(raw.encode()).decode().strip()
+    except (InvalidToken, ValueError):
+        # Backward compatibility with legacy plaintext files.
+        return raw
 
 
 def get_api_key(provider_name: str) -> str:
@@ -45,14 +69,15 @@ def get_api_key(provider_name: str) -> str:
         return env_value
     path = _key_path(provider_name)
     if path.is_file():
-        return path.read_text().strip()
+        return _decrypt_stored_api_key(path.read_text())
     return ""
 
 
 def set_api_key(provider_name: str, api_key: str) -> None:
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
     path = _key_path(provider_name)
-    path.write_text(api_key.strip())
+    encrypted = _get_fernet().encrypt(api_key.strip().encode()).decode()
+    path.write_text(encrypted)
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 

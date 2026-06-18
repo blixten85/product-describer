@@ -49,6 +49,9 @@ docker compose up -d
 
 - All config (API keys, scraper API URL) via environment variables or the
   `config/credentials/` volume — never hardcoded, never committed
+- API keys saved via the web UI are encrypted at rest (Fernet) using
+  `PROVIDER_CONFIG_MASTER_KEY`; without it, saving a new key fails but
+  reading a pre-existing legacy plaintext key file still works
 - Keep prompts in `prompts.py` so they're easy to tune in one place
 - Provider failover order lives in `config/provider_order.json`, filtered
   server-side to providers that currently have a key configured
