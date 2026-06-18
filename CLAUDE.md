@@ -37,7 +37,7 @@ pytest                       # Run tests
 
 ```bash
 docker compose up -d
-# Open http://your-server:5000 and add an API key under Inställningar
+# Open http://your-server:5050 and add an API key under Inställningar
 ```
 
 ## Modes
