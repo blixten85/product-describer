@@ -28,7 +28,14 @@ DEFAULT_MODELS = {
 }
 
 
+def _validate_provider_name(provider_name: str) -> str:
+    if provider_name not in PROVIDER_CLASSES:
+        raise ValueError(f"Unknown provider: {provider_name}")
+    return provider_name
+
+
 def _key_path(provider_name: str) -> Path:
+    provider_name = _validate_provider_name(provider_name)
     return CREDENTIALS_DIR / f"{provider_name}_api_key"
 
 
