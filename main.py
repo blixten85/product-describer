@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Product Description Generator — uses Ollama (local, free)
+Product Description Generator — Claude / OpenAI, with automatic failover
 
 Usage:
   python main.py run products.csv [--output out.csv] [--workers 4]
@@ -8,34 +8,24 @@ Usage:
 """
 
 import csv
-import json
+import logging
 import os
-import re
 import sys
 import time
 import argparse
 import concurrent.futures
-import logging
 from pathlib import Path
 
 import requests
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+import provider_config
+from extractors import extract_rows
+from prompts import build_system_prompt
+from providers import AllProvidersExhausted, ProviderChain
 
 SCRAPER_URL = os.getenv("SCRAPER_URL", "http://scraper:8000")
 SCRAPER_API_KEY_FILE = os.getenv("SCRAPER_API_KEY_FILE", "")
 SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY", "")
-
-SYSTEM_PROMPT = (
-    "Du är en assistent som skriver korta produktbeskrivningar på svenska. "
-    "Svara ALLTID med endast giltig JSON i exakt detta format, utan kodstaket eller extra text:\n"
-    '{"beskrivning": "...", "varför": "..."}\n'
-    "- 'beskrivning' (1–2 meningar): kort, naturlig beskrivning av produkten.\n"
-    "- 'varför' (1–2 meningar): varför någon skulle vilja eller behöva produkten.\n"
-    "Variera stilen — ibland praktisk, ibland entusiastisk, ibland reflekterande. "
-    "Undvik inledningar som 'Självklart!', 'Givetvis!' eller 'Absolut!'."
-)
 
 
 def user_message(site: str, product: str, price: str) -> str:
@@ -46,75 +36,27 @@ def user_message(site: str, product: str, price: str) -> str:
     )
 
 
-_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
-
-
-def _parse_response(content: str) -> dict[str, str]:
-    """Parse model output as JSON; fall back to plain-text in 'beskrivning'."""
-    text = content.strip()
-    match = _JSON_BLOCK.search(text)
-    if match:
-        try:
-            data = json.loads(match.group(0))
-            return {
-                "beskrivning": str(data.get("beskrivning", "")).strip(),
-                "varför": str(data.get("varför") or data.get("varfor", "")).strip(),
-            }
-        except json.JSONDecodeError:
-            pass
-    return {"beskrivning": text, "varför": ""}
-
-
 _log = logging.getLogger("describer.generate")
-_logged_first_response = False
 
 
-def generate_description(site: str, product: str, price: str,
-                          ollama_url: str = OLLAMA_URL,
-                          model: str = OLLAMA_MODEL) -> dict[str, str]:
-    """Generate a description+why pair. Returns dict with 'beskrivning' and 'varför'."""
-    global _logged_first_response
-    resp = requests.post(
-        f"{ollama_url}/api/chat",
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message(site, product, price)},
-            ],
-            "stream": False,
-            "options": {"temperature": 0.8},
-        },
-        timeout=120,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
-    content = payload.get("message", {}).get("content", "")
-    if not _logged_first_response:
-        _logged_first_response = True
-        _log.info("first ollama response (truncated): %r", content[:300])
-    if not content:
-        _log.warning("ollama returned empty content; full payload: %r", payload)
-    return _parse_response(content)
+def generate_description(
+    chain: ProviderChain,
+    site: str,
+    product: str,
+    price: str,
+    options: dict | None = None,
+    custom_direction: str = "",
+) -> dict[str, str]:
+    """Generate a description+why pair using the active provider in the chain."""
+    system_prompt = build_system_prompt(options, custom_direction)
+    return chain.generate(system_prompt, user_message(site, product, price))
 
 
 def load_csv(path: str) -> tuple[list[dict], list[str]]:
     resolved = Path(path).resolve()
     if not resolved.is_file():
         raise FileNotFoundError(f"Filen hittades inte: {path}")
-    with open(resolved, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-        fieldnames = list(reader.fieldnames or [])
-    return rows, fieldnames
-
-
-def ollama_available(ollama_url: str = OLLAMA_URL) -> bool:
-    try:
-        r = requests.get(f"{ollama_url}/api/tags", timeout=3)
-        return r.ok
-    except Exception:
-        return False
+    return extract_rows(str(resolved))
 
 
 def _read_scraper_api_key() -> str:
@@ -153,36 +95,55 @@ def push_description(scraper_url: str, product_id: int, beskrivning: str, varfö
     resp.raise_for_status()
 
 
-def cmd_run(args) -> None:
-    if not ollama_available(args.ollama_url):
-        print(f"Kan inte ansluta till Ollama på {args.ollama_url}", file=sys.stderr)
+def _require_chain() -> ProviderChain:
+    chain = provider_config.build_chain()
+    if chain is None:
+        print(
+            "Ingen AI-leverantör är konfigurerad. Lägg till en API-nyckel "
+            "(t.ex. ANTHROPIC_API_KEY eller via inställningarna i webbgränssnittet).",
+            file=sys.stderr,
+        )
         sys.exit(1)
+    return chain
 
+
+def cmd_run(args) -> None:
+    chain = _require_chain()
     rows, fieldnames = load_csv(args.input)
     total = len(rows)
-    print(f"Bearbetar {total} produkter med {args.model} ({args.workers} parallella)...")
+    print(f"Bearbetar {total} produkter ({args.workers} parallella)...")
 
     results: dict[int, dict[str, str]] = {}
     start = time.time()
+    exhausted = False
 
     def process(idx_row):
         idx, row = idx_row
         try:
             return idx, generate_description(
+                chain,
                 row.get("Site", ""),
                 row.get("Product", ""),
                 row.get("Price (SEK)", ""),
-                ollama_url=args.ollama_url,
-                model=args.model,
-            )
+            ), None
+        except AllProvidersExhausted as e:
+            return idx, None, e
         except Exception:
-            return idx, {"beskrivning": "", "varför": ""}
+            return idx, {"beskrivning": "", "varför": ""}, None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {pool.submit(process, (i, r)): i for i, r in enumerate(rows)}
         done = 0
         for fut in concurrent.futures.as_completed(futures):
-            idx, parts = fut.result()
+            idx, parts, exc = fut.result()
+            if exc is not None:
+                exhausted = True
+                print(
+                    f"\nAlla konfigurerade leverantörer är uttömda. "
+                    f"Försök igen efter {exc.resume_at.isoformat()}.",
+                    file=sys.stderr,
+                )
+                continue
             results[idx] = parts
             done += 1
             elapsed = time.time() - start
@@ -204,6 +165,13 @@ def cmd_run(args) -> None:
 
     ok = sum(1 for v in results.values() if v.get("beskrivning"))
     print(f"Klart! {ok}/{total} beskrivningar sparade i {output}")
+    if exhausted:
+        print(
+            "Obs: körningen avbröts av kvotgräns innan alla rader hann behandlas. "
+            "Kör samma kommando igen senare för resten (webb-UI återupptar automatiskt).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
 
 def _site_from_url(url: str) -> str:
@@ -215,25 +183,24 @@ def _site_from_url(url: str) -> str:
         return ""
 
 
-def _process_one(product: dict, ollama_url: str, model: str):
+def _process_one(chain: ProviderChain, product: dict):
     try:
         parts = generate_description(
+            chain,
             site=_site_from_url(product.get("url", "")),
             product=product.get("title", ""),
             price=str(product.get("current_price", "")),
-            ollama_url=ollama_url,
-            model=model,
         )
         return product["id"], parts, None
+    except AllProvidersExhausted as e:
+        return product["id"], None, e
     except Exception as e:
         return product["id"], None, str(e)
 
 
 def cmd_sync(args) -> None:
     log = logging.getLogger("describer.sync")
-    if not ollama_available(args.ollama_url):
-        log.error("Kan inte ansluta till Ollama på %s", args.ollama_url)
-        sys.exit(1)
+    chain = _require_chain()
 
     while True:
         try:
@@ -245,11 +212,15 @@ def cmd_sync(args) -> None:
         if products:
             log.info("Hämtade %d produkter utan beskrivning", len(products))
             with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-                futures = [
-                    pool.submit(_process_one, p, args.ollama_url, args.model) for p in products
-                ]
+                futures = [pool.submit(_process_one, chain, p) for p in products]
                 for fut in concurrent.futures.as_completed(futures):
                     pid, parts, err = fut.result()
+                    if isinstance(err, AllProvidersExhausted):
+                        log.warning(
+                            "Alla leverantörer uttömda, försöker igen efter %s",
+                            err.resume_at.isoformat(),
+                        )
+                        continue
                     if err or not parts or not parts.get("beskrivning"):
                         log.warning("Hoppar över produkt %s: %s", pid, err or "tomt svar")
                         continue
@@ -273,14 +244,12 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    parser = argparse.ArgumentParser(description="Generera produktbeskrivningar med Ollama")
+    parser = argparse.ArgumentParser(description="Generera produktbeskrivningar med Claude/OpenAI")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_run = sub.add_parser("run", help="Kör mot en CSV-fil")
-    p_run.add_argument("input", help="CSV-fil (kolumner: Site, Product, Price (SEK), Link)")
+    p_run = sub.add_parser("run", help="Kör mot en fil (CSV, Excel, txt, docx, pdf)")
+    p_run.add_argument("input", help="Fil med produkter")
     p_run.add_argument("--output", help="Output-fil (default: <input>_med_beskrivning.csv)")
-    p_run.add_argument("--model", default=OLLAMA_MODEL)
-    p_run.add_argument("--ollama-url", default=OLLAMA_URL)
     p_run.add_argument("--workers", type=int, default=2)
     p_run.set_defaults(func=cmd_run)
 
@@ -289,8 +258,6 @@ def main() -> None:
     p_sync.add_argument("--limit", type=int, default=50, help="Max antal produkter per körning")
     p_sync.add_argument("--watch", action="store_true", help="Loopa istället för att köra en gång")
     p_sync.add_argument("--interval", type=int, default=300, help="Sekunder mellan loopar (med --watch)")
-    p_sync.add_argument("--model", default=OLLAMA_MODEL)
-    p_sync.add_argument("--ollama-url", default=OLLAMA_URL)
     p_sync.add_argument("--workers", type=int, default=2)
     p_sync.set_defaults(func=cmd_sync)
 

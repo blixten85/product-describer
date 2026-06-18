@@ -16,7 +16,6 @@ You should receive a response within 48 hours. If the issue is confirmed, a patc
 
 ## Security Best Practices
 
-- Always pass `ANTHROPIC_API_KEY` (if used) and other secrets via environment variables
-- Never commit `.env` files or credentials to version control
-- The app does not expose Ollama externally — keep port 11434 firewalled
+- Always pass `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` and other secrets via environment variables
+- Never commit `.env` files, the `config/` directory, or credentials to version control
 - Keep dependencies updated (Dependabot is enabled)

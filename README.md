@@ -5,14 +5,17 @@
 [![Image](https://ghcr-badge.egpl.dev/blixten85/product-describer/size?color=blue&label=image)](https://github.com/blixten85/product-describer/pkgs/container/product-describer)
 [![License](https://img.shields.io/github/license/blixten85/product-describer)](LICENSE)
 
-Generates Swedish product descriptions using a local LLM via [Ollama](https://ollama.com) — completely free, runs on your own server.
+Generates Swedish product descriptions via your own Claude (Anthropic) and/or
+ChatGPT (OpenAI) API account.
 
-**Input:** CSV file with columns `Site, Product, Price (SEK), Link`  
-**Output:** Same CSV with two extra columns — `Beskrivning` (description) and `Varför` (why you'd want it)
+**Input:** CSV, Excel (`.xlsx`), `.txt`, `.docx`, or `.pdf` — for unstructured
+formats, the AI finds every item mentioned automatically.  
+**Output:** A CSV with two extra columns — `Beskrivning` (description) and
+`Varför` (why you'd want it).
 
 Two modes are supported:
 
-- **CSV** — drag and drop in the web UI, or run `python main.py run products.csv`.
+- **File upload** — drag and drop in the web UI, or run `python main.py run products.csv`.
 - **Sync** — pull products directly from the [scraper](https://github.com/blixten85/scraper) API, generate descriptions, and write them back. Started with a docker-compose profile (see below).
 
 ## Getting started
@@ -20,58 +23,40 @@ Two modes are supported:
 ```bash
 # Place docker-compose.yml on your server and run:
 docker compose up -d
-
-# Pull the model once (~5 GB, only needed once)
-docker exec product-describer-ollama ollama pull llama3.1:8b
 ```
 
-Open **http://your-server:5000**
+Open **http://your-server:5000** and add at least one API key under
+**Inställningar** (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` as
+environment variables before starting the container).
 
 ## Usage
 
-1. Drag and drop a CSV file
-2. Select model and number of workers
-3. Click **Generera** — processing runs locally in the background
+1. Drag and drop a file (CSV, Excel, txt, docx or pdf)
+2. Optionally pick a tone/length/audience, or write a custom direction
+3. Click **Generera** — processing runs in the background
 4. Download the CSV when complete
 
-**Tip:** Want to refine descriptions that aren't quite right?  
-Upload the finished CSV to [Claude.ai](https://claude.ai) and ask it to improve selected rows — included in your Pro subscription.
+## Multi-provider failover
 
-## Models
+Configure one or more providers under **Inställningar**, in priority order
+(e.g. Claude first, ChatGPT second). The active provider is used until it
+reports a rate limit or quota error, at which point the job automatically
+switches to the next configured provider — no manual intervention needed.
 
-| Model | Size | Quality | Swedish |
-|-------|------|---------|---------|
-| `llama3.1:8b` | 5 GB | Good | Good |
-| `qwen2.5:7b` | 4.7 GB | Good | Very good |
-| `mistral:7b` | 4.1 GB | OK | OK |
-
-```bash
-docker exec product-describer-ollama ollama pull qwen2.5:7b
-```
-
-## Hardware (Ryzen 5 7430U, 16 GB RAM)
-
-The server has an **integrated AMD Barcelo GPU** (Vega/GCN-5) sharing system memory with the CPU.
-ROCm does not officially support iGPUs, but can be attempted with `HSA_OVERRIDE_GFX_VERSION=9.0.0` — uncomment
-the relevant lines in `docker-compose.yml`. Without GPU, the model runs on CPU (AVX2):
-
-| Model | Speed (CPU) |
-|-------|-------------|
-| `llama3.1:8b` | ~3–5 tok/s |
-| `qwen2.5:7b` | ~4–6 tok/s |
-
-With 2–4 workers at ~3 sec/item, 8,000 items takes roughly 3–4 hours. Best run overnight.
-
-## GPU (optional)
-
-See the comments in `docker-compose.yml` for AMD ROCm (iGPU workaround) and NVIDIA.
+If every configured provider is exhausted, the job pauses instead of
+failing. A background watcher checks periodically and resumes the job
+automatically the instant a provider's quota is expected to reset (or
+immediately if the API returned a `Retry-After` hint). No work already done
+is lost — completed descriptions are saved incrementally as the job runs, so
+a pause/resume cycle (even spanning multiple days) just picks up where it
+left off.
 
 ## Sync mode (scraper integration)
 
 Set `SYNC_ENABLED=true` and the main container also runs a background
 worker that polls the [scraper](https://github.com/blixten85/scraper) API
-for products without descriptions, generates them via Ollama, and writes
-them back. No extra container needed.
+for products without descriptions, generates them via your configured
+provider chain, and writes them back. No extra container needed.
 
 ```bash
 # .env (or shell)

@@ -3,3 +3,7 @@ batch_state.json
 *.csv
 __pycache__/
 *.pyc
+/config/
+/uploads/
+/outputs/
+jobs.json

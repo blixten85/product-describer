@@ -117,7 +117,7 @@
             margin-left: auto;
             display: flex;
             align-items: center;
-            gap: 18px;
+            gap: 12px;
         }
 
         .status-pill {
@@ -140,7 +140,7 @@
         .status-dot.ok  { background: var(--success); box-shadow: 0 0 8px var(--success); }
         .status-dot.err { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
 
-        .theme-btn {
+        .icon-btn {
             width: 34px;
             height: 34px;
             border-radius: 8px;
@@ -154,7 +154,7 @@
             transition: background 0.2s, border-color 0.2s, color 0.2s;
         }
 
-        .theme-btn:hover {
+        .icon-btn:hover {
             background: var(--accent-dim);
             border-color: var(--accent);
             color: var(--accent);
@@ -266,7 +266,39 @@
 
         .file-name { font-family: var(--ff-head); font-weight: 600; font-size: 0.88rem; margin-bottom: 3px; word-break: break-all; }
         .file-sub  { font-size: 0.7rem; color: var(--text-dim); line-height: 1.6; }
-        .file-estimate { color: var(--accent); }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .opt-group label {
+            display: block;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+        }
+
+        textarea, input[type="text"], input[type="password"] {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 9px 11px;
+            font-family: var(--ff-mono);
+            font-size: 0.78rem;
+            font-weight: 300;
+            outline: none;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus, input:focus { border-color: var(--accent); }
+        textarea { resize: vertical; min-height: 56px; }
 
         .file-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
@@ -323,6 +355,13 @@
             border: 1px solid rgba(34,197,94,0.2);
         }
         .btn-dl:hover { background: rgba(34,197,94,0.2); }
+
+        .btn-ghost {
+            background: var(--bg-3);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinner {
@@ -396,6 +435,7 @@
         }
 
         .prog-fill.done { background: var(--success); }
+        .prog-fill.paused { background: var(--text-dim); }
 
         @keyframes shimmer {
             0%   { transform: translateX(-150%); }
@@ -435,6 +475,8 @@
         .badge.done       .badge-dot { background: var(--success); }
         .badge.error      { background: var(--danger-dim);  color: var(--danger); }
         .badge.error      .badge-dot { background: var(--danger); }
+        .badge.paused     { background: var(--accent-dim);  color: var(--accent); }
+        .badge.paused     .badge-dot { background: var(--accent); }
 
         .td-date { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; }
         .err-msg { font-size: 0.7rem; color: var(--danger); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -453,8 +495,6 @@
         }
 
         .tip-icon { flex-shrink: 0; }
-        .tip a { color: var(--accent); text-decoration: none; }
-        .tip a:hover { text-decoration: underline; }
         .tip strong { color: var(--text); font-weight: 500; }
 
         .toast-container {
@@ -510,9 +550,81 @@
             to   { opacity: 1; transform: translateY(0); }
         }
 
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 24px;
+        }
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            max-width: 520px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--ff-head);
+            font-weight: 700;
+        }
+
+        .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+
+        .provider-row {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .provider-row-head { display: flex; align-items: center; justify-content: space-between; }
+        .provider-name { font-family: var(--ff-head); font-weight: 600; font-size: 0.85rem; }
+        .provider-key-row { display: flex; gap: 8px; }
+
+        .order-list { display: flex; flex-direction: column; gap: 6px; }
+        .order-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.78rem;
+        }
+        .order-item .rank { color: var(--text-dim); font-size: 0.7rem; width: 16px; }
+        .order-item .move-btns { margin-left: auto; display: flex; gap: 4px; }
+        .order-item button {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-dim);
+            cursor: pointer;
+            width: 22px;
+            height: 22px;
+        }
+        .order-item button:hover { color: var(--accent); border-color: var(--accent); }
+
         @media (max-width: 600px) {
             .nav-inner, main { padding-left: 16px; padding-right: 16px; }
             .card-body { padding: 20px 18px; }
+            .options-grid { grid-template-columns: 1fr; }
             th:nth-child(2), td:nth-child(2),
             th:nth-child(5), td:nth-child(5) { display: none; }
         }
@@ -528,10 +640,11 @@
         </div>
         <div class="nav-right">
             <div class="status-pill">
-                <span class="status-dot" id="ollamaDot"></span>
-                <span id="ollamaLabel">Kontrollerar…</span>
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusLabel">Kontrollerar…</span>
             </div>
-            <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Byt tema"></button>
+            <button class="icon-btn" id="settingsBtn" onclick="openSettings()" title="Inställningar">⚙</button>
+            <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Byt tema"></button>
         </div>
     </div>
 </nav>
@@ -543,25 +656,52 @@
 
             <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
                 <span class="drop-icon">📄</span>
-                <div class="drop-title">Dra och släpp CSV-fil här</div>
+                <div class="drop-title">Dra och släpp en fil här</div>
                 <div class="drop-sub">eller klicka för att välja fil</div>
-                <span class="drop-tag">Site · Product · Price (SEK) · Link</span>
+                <span class="drop-tag">CSV · Excel · TXT · Word · PDF</span>
             </div>
-            <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.txt,.docx,.pdf" style="display:none" onchange="handleFile(this.files[0])">
 
             <div class="file-info" id="fileInfo">
                 <div class="file-meta">
                     <div class="file-icon-box">📊</div>
                     <div>
                         <div class="file-name" id="fileName"></div>
-                        <div class="file-sub" id="fileRows"></div>
-                        <div class="file-sub file-estimate" id="timeEstimate"></div>
+                        <div class="file-sub" id="fileMeta"></div>
                     </div>
                 </div>
+
+                <div class="options-grid">
+                    <div class="opt-group">
+                        <label for="toneSelect">Ton</label>
+                        <select id="toneSelect">
+                            <option value="">Variera (standard)</option>
+                            <option value="saklig">Saklig</option>
+                            <option value="entusiastisk">Entusiastisk</option>
+                            <option value="humoristisk">Humoristisk</option>
+                            <option value="lyxig">Lyxig</option>
+                        </select>
+                    </div>
+                    <div class="opt-group">
+                        <label for="lengthSelect">Längd</label>
+                        <select id="lengthSelect">
+                            <option value="medel">Medel (standard)</option>
+                            <option value="kort">Kort</option>
+                            <option value="lang">Lång</option>
+                        </select>
+                    </div>
+                    <div class="opt-group">
+                        <label for="audienceInput">Målgrupp</label>
+                        <input type="text" id="audienceInput" placeholder="t.ex. present till barn">
+                    </div>
+                </div>
+
+                <div class="opt-group" style="margin-bottom:14px">
+                    <label for="customDirection">Egna instruktioner (valfritt)</label>
+                    <textarea id="customDirection" placeholder="Skriv en egen riktning för motiveringen, t.ex. betona hållbarhet och kvalitet."></textarea>
+                </div>
+
                 <div class="file-controls">
-                    <select id="modelSelect">
-                        <option value="{{ default_model }}">{{ default_model }}</option>
-                    </select>
                     <select id="workersSelect" title="Parallella förfrågningar">
                         <option value="1">1 worker</option>
                         <option value="2" selected>2 workers</option>
@@ -582,7 +722,7 @@
                 <thead>
                     <tr>
                         <th>Fil</th>
-                        <th>Modell</th>
+                        <th>Leverantör</th>
                         <th>Framsteg</th>
                         <th>Status</th>
                         <th>Skapat</th>
@@ -597,18 +737,31 @@
     <div class="tip">
         <span class="tip-icon">💡</span>
         <span>
-            <strong>Tips:</strong> Ladda ner den färdiga CSV:n och ladda upp den till
-            <a href="https://claude.ai" target="_blank" rel="noopener">Claude.ai</a>
-            för att finputsa beskrivningar — ingår i ditt Pro-abonnemang.
+            <strong>Tips:</strong> Om alla konfigurerade AI-leverantörer når sin kvotgräns
+            pausas jobbet automatiskt och återupptas själv så fort kvoten återställs —
+            inget arbete går förlorat.
         </span>
     </div>
 </main>
+
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span>Inställningar</span>
+            <button class="icon-btn" onclick="closeSettings()">×</button>
+        </div>
+        <div class="modal-body" id="settingsBody">
+            <!-- populated by JS -->
+        </div>
+    </div>
+</div>
 
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
 let selectedFile = null;
 let pollTimer = null;
+let settingsCache = null;
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 function toggleTheme() {
@@ -623,39 +776,188 @@ function updateThemeIcon() {
 }
 updateThemeIcon();
 
-// ── Ollama status ──────────────────────────────────────────────────────────
-async function checkOllama() {
-    const dot = document.getElementById('ollamaDot');
-    const label = document.getElementById('ollamaLabel');
+// ── Provider status ───────────────────────────────────────────────────────
+async function checkStatus() {
+    const dot = document.getElementById('statusDot');
+    const label = document.getElementById('statusLabel');
     try {
         const d = await fetch('/api/status').then(r => r.json());
-        if (d.ollama) {
+        if (d.ready) {
             dot.className = 'status-dot ok';
-            label.textContent = 'Ollama ansluten';
-            loadModels();
+            label.textContent = d.configured.length + ' leverantör(er) klara';
         } else {
             dot.className = 'status-dot err';
-            label.textContent = 'Ollama ej tillgänglig';
+            label.textContent = 'Ingen AI-leverantör konfigurerad';
         }
     } catch {
         dot.className = 'status-dot err';
-        label.textContent = 'Ollama ej tillgänglig';
+        label.textContent = 'Kan inte nå servern';
     }
 }
 
-async function loadModels() {
-    const d = await fetch('/api/models').then(r => r.json()).catch(() => ({ models: [] }));
-    if (!d.models.length) return;
-    const sel = document.getElementById('modelSelect');
-    const current = sel.value;
-    sel.innerHTML = '';
-    d.models.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m;
-        opt.textContent = m;
-        if (m === current) opt.selected = true;
-        sel.appendChild(opt);
+// ── Settings modal ───────────────────────────────────────────────────────
+async function openSettings() {
+    document.getElementById('settingsModal').classList.add('show');
+    settingsCache = await fetch('/api/settings').then(r => r.json());
+    renderSettings();
+}
+function closeSettings() {
+    document.getElementById('settingsModal').classList.remove('show');
+}
+
+function renderSettings() {
+    const body = document.getElementById('settingsBody');
+    body.textContent = '';
+
+    Object.keys(settingsCache.labels).forEach(provider => {
+        const row = document.createElement('div');
+        row.className = 'provider-row';
+
+        const head = document.createElement('div');
+        head.className = 'provider-row-head';
+        const name = document.createElement('span');
+        name.className = 'provider-name';
+        name.textContent = settingsCache.labels[provider];
+        head.appendChild(name);
+        if (settingsCache.configured.includes(provider)) {
+            const badge = document.createElement('span');
+            badge.className = 'badge done';
+            const dot = document.createElement('span');
+            dot.className = 'badge-dot';
+            badge.append(dot, 'Konfigurerad');
+            head.appendChild(badge);
+        }
+        row.appendChild(head);
+
+        const keyRow = document.createElement('div');
+        keyRow.className = 'provider-key-row';
+        const input = document.createElement('input');
+        input.type = 'password';
+        input.placeholder = 'API-nyckel';
+        input.id = 'key-' + provider;
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn btn-ghost';
+        saveBtn.textContent = 'Spara';
+        saveBtn.addEventListener('click', () => saveKey(provider));
+        keyRow.append(input, saveBtn);
+        row.appendChild(keyRow);
+
+        const modelSelect = document.createElement('select');
+        modelSelect.id = 'model-' + provider;
+        (settingsCache.available_models[provider] || []).forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            modelSelect.appendChild(opt);
+        });
+        const existing = settingsCache.order.find(o => o.provider === provider);
+        if (existing) modelSelect.value = existing.model;
+        row.appendChild(modelSelect);
+
+        body.appendChild(row);
     });
+
+    const orderTitle = document.createElement('div');
+    orderTitle.className = 'opt-group';
+    const orderLabel = document.createElement('label');
+    orderLabel.textContent = 'Failover-ordning (provas i denna ordning, byter vid kvotgräns)';
+    orderTitle.appendChild(orderLabel);
+    body.appendChild(orderTitle);
+
+    const orderList = document.createElement('div');
+    orderList.className = 'order-list';
+    orderList.id = 'orderList';
+    renderOrderList(orderList);
+    body.appendChild(orderList);
+
+    const saveOrderBtn = document.createElement('button');
+    saveOrderBtn.className = 'btn btn-primary';
+    saveOrderBtn.textContent = 'Spara ordning';
+    saveOrderBtn.addEventListener('click', saveOrder);
+    body.appendChild(saveOrderBtn);
+}
+
+function renderOrderList(container) {
+    container.textContent = '';
+    settingsCache.order.forEach((entry, i) => {
+        const item = document.createElement('div');
+        item.className = 'order-item';
+
+        const rank = document.createElement('span');
+        rank.className = 'rank';
+        rank.textContent = (i + 1) + '.';
+
+        const label = document.createElement('span');
+        label.textContent = settingsCache.labels[entry.provider] || entry.provider;
+
+        const moveBtns = document.createElement('span');
+        moveBtns.className = 'move-btns';
+        const up = document.createElement('button');
+        up.textContent = '↑';
+        up.disabled = i === 0;
+        up.addEventListener('click', () => moveOrder(i, -1));
+        const down = document.createElement('button');
+        down.textContent = '↓';
+        down.disabled = i === settingsCache.order.length - 1;
+        down.addEventListener('click', () => moveOrder(i, 1));
+        moveBtns.append(up, down);
+
+        item.append(rank, label, moveBtns);
+        container.appendChild(item);
+    });
+}
+
+function moveOrder(i, dir) {
+    const order = settingsCache.order;
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    renderOrderList(document.getElementById('orderList'));
+}
+
+async function saveKey(provider) {
+    const input = document.getElementById('key-' + provider);
+    const apiKey = input.value.trim();
+    if (!apiKey) { showToast('Klistra in en nyckel först', 'danger'); return; }
+    try {
+        const r = await fetch('/api/settings/key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider, api_key: apiKey }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Fel');
+        showToast('Nyckel sparad', 'success');
+        input.value = '';
+        settingsCache = await fetch('/api/settings').then(res => res.json());
+        if (!settingsCache.order.some(o => o.provider === provider)) {
+            settingsCache.order.push({ provider, model: (settingsCache.available_models[provider] || [''])[0] });
+        }
+        renderSettings();
+        checkStatus();
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function saveOrder() {
+    const order = settingsCache.order.map(entry => ({
+        provider: entry.provider,
+        model: document.getElementById('model-' + entry.provider)?.value || entry.model,
+    }));
+    try {
+        const r = await fetch('/api/settings/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Fel');
+        showToast('Ordning sparad', 'success');
+        closeSettings();
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
 }
 
 // ── Drag-and-drop ──────────────────────────────────────────────────────────
@@ -668,23 +970,15 @@ dropZone.addEventListener('drop', e => {
     if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
 
-document.getElementById('workersSelect').addEventListener('change', () => {
-    if (selectedFile) handleFile(selectedFile);
-});
+const ALLOWED_EXT = ['.csv', '.xlsx', '.txt', '.docx', '.pdf'];
 
 function handleFile(file) {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.csv')) { showToast('Välj en CSV-fil', 'danger'); return; }
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) { showToast('Filtyp stöds inte', 'danger'); return; }
     selectedFile = file;
-    const rows = Math.round(file.size / 80);
-    const workers = parseInt(document.getElementById('workersSelect').value);
-    const minutes = Math.round(rows * (3 / workers) / 60);
     document.getElementById('fileName').textContent = file.name;
-    document.getElementById('fileRows').textContent =
-        '~' + rows.toLocaleString('sv-SE') + ' rader · ' + (file.size / 1024).toFixed(0) + ' KB';
-    document.getElementById('timeEstimate').textContent =
-        '≈ ' + (minutes < 60 ? minutes + ' min' : Math.round(minutes / 60) + ' h') +
-        ' med ' + workers + ' worker(s) — lokalt, gratis';
+    document.getElementById('fileMeta').textContent = (file.size / 1024).toFixed(0) + ' KB';
     document.getElementById('fileInfo').classList.add('show');
 }
 
@@ -700,14 +994,17 @@ async function submitJob() {
 
     const form = new FormData();
     form.append('file', selectedFile);
-    form.append('model', document.getElementById('modelSelect').value);
     form.append('workers', document.getElementById('workersSelect').value);
+    form.append('tone', document.getElementById('toneSelect').value);
+    form.append('length', document.getElementById('lengthSelect').value);
+    form.append('audience', document.getElementById('audienceInput').value);
+    form.append('custom_direction', document.getElementById('customDirection').value);
 
     try {
         const r = await fetch('/api/upload', { method: 'POST', body: form });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || 'Fel vid uppladdning');
-        showToast('Startat — ' + d.total.toLocaleString('sv-SE') + ' produkter', 'success');
+        showToast('Startat', 'success');
         selectedFile = null;
         document.getElementById('fileInfo').classList.remove('show');
         document.getElementById('fileInput').value = '';
@@ -743,6 +1040,7 @@ async function loadJobsAndMaybeStopPolling() {
         queued:     ['queued',     'Köar'],
         done:       ['done',       'Klar'],
         error:      ['error',      'Fel'],
+        paused:     ['paused',     'Pausad'],
     };
 
     jobs.forEach(job => {
@@ -753,6 +1051,7 @@ async function loadJobsAndMaybeStopPolling() {
         const [cls, lbl] = statusMap[job.status] || ['queued', job.status];
         const isDone = job.status === 'done';
         const isActive = job.status === 'processing';
+        const isPaused = job.status === 'paused';
 
         const tr = document.createElement('tr');
 
@@ -763,7 +1062,7 @@ async function loadJobsAndMaybeStopPolling() {
 
         const tdModel = document.createElement('td');
         tdModel.className = 'td-model';
-        tdModel.textContent = job.model || '—';
+        tdModel.textContent = job.provider || '—';
 
         const tdProg = document.createElement('td');
         const prog = document.createElement('div');
@@ -771,7 +1070,7 @@ async function loadJobsAndMaybeStopPolling() {
         const track = document.createElement('div');
         track.className = 'prog-track';
         const fill = document.createElement('div');
-        fill.className = 'prog-fill' + (isDone ? ' done' : '') + (isActive ? ' active' : '');
+        fill.className = 'prog-fill' + (isDone ? ' done' : '') + (isActive ? ' active' : '') + (isPaused ? ' paused' : '');
         fill.style.width = pct + '%';
         track.appendChild(fill);
         const count = document.createElement('div');
@@ -787,6 +1086,12 @@ async function loadJobsAndMaybeStopPolling() {
         dot.className = 'badge-dot';
         badge.append(dot, lbl);
         tdStatus.appendChild(badge);
+        if (isPaused && job.resume_at) {
+            const when = new Date(job.resume_at).toLocaleString('sv-SE', {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            tdStatus.title = 'Återupptas automatiskt ' + when;
+        }
 
         const tdDate = document.createElement('td');
         tdDate.className = 'td-date';
@@ -805,6 +1110,11 @@ async function loadJobsAndMaybeStopPolling() {
             span.title = job.error || 'Okänt fel';
             span.textContent = job.error || 'Okänt fel';
             tdAction.appendChild(span);
+        } else if (isPaused) {
+            const span = document.createElement('span');
+            span.style.cssText = 'font-size:.7rem;color:var(--text-dim)';
+            span.textContent = 'Väntar på kvot…';
+            tdAction.appendChild(span);
         } else {
             const span = document.createElement('span');
             span.style.cssText = 'font-size:.7rem;color:var(--text-dim)';
@@ -822,7 +1132,7 @@ function startPolling() {
     if (pollTimer) return;
     pollTimer = setInterval(async () => {
         const jobs = await loadJobsAndMaybeStopPolling();
-        if (!jobs.some(j => j.status === 'processing' || j.status === 'queued')) {
+        if (!jobs.some(j => j.status === 'processing' || j.status === 'queued' || j.status === 'paused')) {
             clearInterval(pollTimer);
             pollTimer = null;
         }
@@ -859,9 +1169,9 @@ function dismissToast(el) {
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
-checkOllama();
+checkStatus();
 loadJobs().then(jobs => {
-    if (jobs && jobs.some(j => j.status === 'processing' || j.status === 'queued')) startPolling();
+    if (jobs && jobs.some(j => j.status === 'processing' || j.status === 'queued' || j.status === 'paused')) startPolling();
 });
 </script>
 </body>

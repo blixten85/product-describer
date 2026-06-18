@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-import concurrent.futures
-import csv
 import json
 import logging
 import os
 import re
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
 
+import provider_config
+from extractors import SUPPORTED_EXTENSIONS, extract_rows
 from main import (
-    OLLAMA_MODEL,
-    OLLAMA_URL,
     SCRAPER_URL,
     _process_one,
     fetch_products_missing_description,
     generate_description,
-    load_csv,
-    ollama_available,
     push_description,
 )
+from providers import AllProvidersExhausted, PROVIDER_LABELS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("describer")
@@ -30,6 +28,7 @@ log = logging.getLogger("describer")
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
 JOBS_FILE = Path("jobs.json")
+RESUME_CHECK_INTERVAL = int(os.getenv("RESUME_CHECK_INTERVAL", "120"))
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
@@ -70,98 +69,242 @@ def _get_jobs() -> list[dict]:
 _load_from_disk()
 
 
-def _process(job_id: str, workers: int, model: str, ollama_url: str) -> None:
+def _rows_path(job_id: str) -> Path:
+    return OUTPUT_DIR / f"{job_id}_rows.json"
+
+
+def _partial_path(job_id: str) -> Path:
+    return OUTPUT_DIR / f"{job_id}_partial.json"
+
+
+def _save_rows(job_id: str, rows: list[dict], fieldnames: list[str]) -> None:
+    with open(_rows_path(job_id), "w", encoding="utf-8") as f:
+        json.dump({"rows": rows, "fieldnames": fieldnames}, f)
+
+
+def _load_rows(job_id: str) -> tuple[list[dict], list[str]] | None:
+    path = _rows_path(job_id)
+    if not path.is_file():
+        return None
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return data["rows"], data["fieldnames"]
+
+
+def _save_partial(job_id: str, results: dict[int, dict]) -> None:
+    with open(_partial_path(job_id), "w", encoding="utf-8") as f:
+        json.dump({str(k): v for k, v in results.items()}, f)
+
+
+def _load_partial(job_id: str) -> dict[int, dict]:
+    path = _partial_path(job_id)
+    if not path.is_file():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    return {int(k): v for k, v in raw.items()}
+
+
+def _pause_job(job: dict, resume_at: datetime) -> None:
+    job["status"] = "paused"
+    job["resume_at"] = resume_at.isoformat()
+
+
+def _process(job_id: str) -> None:
+    import concurrent.futures
+
     with _lock:
         job = _jobs[job_id]
         job["status"] = "processing"
+        job["resume_at"] = None
+        workers = job["workers"]
+        options = job.get("options") or {}
+        custom_direction = job.get("custom_direction", "")
+    _save()
+
+    chain = provider_config.build_chain()
+    if chain is None:
+        with _lock:
+            job["status"] = "error"
+            job["error"] = "Ingen AI-leverantör konfigurerad."
+        _save()
+        return
 
     try:
-        rows, fieldnames = load_csv(job["input_path"])
+        cached = _load_rows(job_id)
+        if cached is None:
+            rows, fieldnames = extract_rows(job["input_path"], chain)
+            _save_rows(job_id, rows, fieldnames)
+        else:
+            rows, fieldnames = cached
         with _lock:
             job["total"] = len(rows)
-
-        results: dict[int, dict[str, str]] = {}
-        errors: list[str] = []
-
-        def do(idx_row):
-            idx, row = idx_row
-            try:
-                parts = generate_description(
-                    row.get("Site", ""),
-                    row.get("Product", ""),
-                    row.get("Price (SEK)", ""),
-                    ollama_url=ollama_url,
-                    model=model,
-                )
-                if not parts.get("beskrivning"):
-                    log.warning("job=%s row=%s empty beskrivning for %r", job_id, idx, row.get("Product", "")[:60])
-                return idx, parts, None
-            except Exception as e:
-                log.exception("job=%s row=%s failed for %r", job_id, idx, row.get("Product", "")[:60])
-                return idx, {"beskrivning": "", "varför": ""}, f"{type(e).__name__}: {e}"
-
-        log.info("job=%s starting %d rows with model=%s workers=%d", job_id, len(rows), model, workers)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(do, (i, r)): i for i, r in enumerate(rows)}
-            for fut in concurrent.futures.as_completed(futures):
-                idx, parts, err = fut.result()
-                results[idx] = parts
-                if err and len(errors) < 10:
-                    errors.append(err)
-                with _lock:
-                    job["succeeded"] = sum(1 for v in results.values() if v.get("beskrivning"))
-                    if errors:
-                        job["last_errors"] = errors
-                if len(results) % 50 == 0:
-                    _save()
-        log.info("job=%s done — %d/%d succeeded", job_id, job["succeeded"], len(rows))
-
-        output_path = OUTPUT_DIR / f"{job_id}_med_beskrivning.csv"
-        out_fields = fieldnames + ["Beskrivning", "Varför"]
-        with open(output_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=out_fields)
-            writer.writeheader()
-            for i, row in enumerate(rows):
-                parts = results.get(i, {"beskrivning": "", "varför": ""})
-                row["Beskrivning"] = _safe_csv(parts.get("beskrivning", ""))
-                row["Varför"] = _safe_csv(parts.get("varför", ""))
-                writer.writerow(row)
-
+    except AllProvidersExhausted as e:
         with _lock:
-            job["output_file"] = str(output_path)
-            job["status"] = "done"
-
+            _pause_job(job, e.resume_at)
+        _save()
+        return
     except Exception as e:
         with _lock:
             job["status"] = "error"
             job["error"] = str(e)
+        _save()
+        return
 
+    results = _load_partial(job_id)
+    pending = [(i, r) for i, r in enumerate(rows) if i not in results]
+
+    if not pending:
+        _finish_job(job_id, job, rows, fieldnames, results)
+        return
+
+    exhausted_at: datetime | None = None
+    save_counter = 0
+
+    def do(idx_row):
+        idx, row = idx_row
+        try:
+            parts = generate_description(
+                chain,
+                row.get("Site", ""),
+                row.get("Product", ""),
+                row.get("Price (SEK)", ""),
+                options=options,
+                custom_direction=custom_direction,
+            )
+            if not parts.get("beskrivning"):
+                log.warning("job=%s row=%s empty beskrivning for %r", job_id, idx, row.get("Product", "")[:60])
+            return idx, parts, None
+        except AllProvidersExhausted as e:
+            return idx, None, e
+        except Exception as e:
+            log.exception("job=%s row=%s failed for %r", job_id, idx, row.get("Product", "")[:60])
+            return idx, {"beskrivning": "", "varför": ""}, f"{type(e).__name__}: {e}"
+
+    log.info("job=%s starting %d/%d rows with workers=%d", job_id, len(pending), len(rows), workers)
+    errors: list[str] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(do, idx_row): idx_row[0] for idx_row in pending}
+        for fut in concurrent.futures.as_completed(futures):
+            idx, parts, err = fut.result()
+            if isinstance(err, AllProvidersExhausted):
+                exhausted_at = exhausted_at or err.resume_at
+                continue
+            results[idx] = parts
+            if err and len(errors) < 10:
+                errors.append(err)
+            save_counter += 1
+            with _lock:
+                job["succeeded"] = sum(1 for v in results.values() if v.get("beskrivning"))
+                job["provider"] = chain.current_provider_name()
+                if errors:
+                    job["last_errors"] = errors
+            if save_counter % 5 == 0:
+                _save_partial(job_id, results)
+                _save()
+
+    _save_partial(job_id, results)
+
+    if exhausted_at is not None and len(results) < len(rows):
+        with _lock:
+            _pause_job(job, exhausted_at)
+        _save()
+        log.info("job=%s paused — providers exhausted, resuming at %s", job_id, exhausted_at.isoformat())
+        return
+
+    _finish_job(job_id, job, rows, fieldnames, results)
+
+
+def _finish_job(job_id: str, job: dict, rows: list[dict], fieldnames: list[str], results: dict[int, dict]) -> None:
+    import csv
+
+    output_path = OUTPUT_DIR / f"{job_id}_med_beskrivning.csv"
+    out_fields = fieldnames + ["Beskrivning", "Varför"]
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fields)
+        writer.writeheader()
+        for i, row in enumerate(rows):
+            parts = results.get(i, {"beskrivning": "", "varför": ""})
+            row = dict(row)
+            row["Beskrivning"] = _safe_csv(parts.get("beskrivning", ""))
+            row["Varför"] = _safe_csv(parts.get("varför", ""))
+            writer.writerow(row)
+
+    with _lock:
+        job["output_file"] = str(output_path)
+        job["status"] = "done"
+        job["succeeded"] = sum(1 for v in results.values() if v.get("beskrivning"))
     _save()
+    log.info("job=%s done — %d/%d succeeded", job_id, job["succeeded"], len(rows))
+    _partial_path(job_id).unlink(missing_ok=True)
+
+
+def _resume_watcher() -> None:
+    while True:
+        time.sleep(RESUME_CHECK_INTERVAL)
+        now = datetime.now(timezone.utc)
+        with _lock:
+            due = [
+                j["id"] for j in _jobs.values()
+                if j["status"] == "paused" and j.get("resume_at")
+                and datetime.fromisoformat(j["resume_at"]) <= now
+            ]
+        for job_id in due:
+            log.info("job=%s resuming automatically", job_id)
+            threading.Thread(target=_process, args=(job_id,), daemon=True).start()
+
+
+threading.Thread(target=_resume_watcher, daemon=True, name="resume-watcher").start()
 
 
 @app.route("/")
 def index():
-    return render_template("index.html",
-                           default_model=os.getenv("OLLAMA_MODEL", OLLAMA_MODEL),
-                           ollama_url=os.getenv("OLLAMA_URL", OLLAMA_URL))
+    return render_template("index.html", providers=provider_config.PROVIDER_CLASSES.keys())
 
 
 @app.route("/api/status")
 def api_status():
-    url = os.getenv("OLLAMA_URL", OLLAMA_URL)
-    return jsonify({"ollama": ollama_available(url), "ollama_url": url})
+    configured = provider_config.configured_providers()
+    return jsonify({"configured": configured, "ready": bool(configured)})
 
 
-@app.route("/api/models")
-def api_models():
-    import requests as req
-    url = os.getenv("OLLAMA_URL", OLLAMA_URL)
-    try:
-        r = req.get(f"{url}/api/tags", timeout=3)
-        models = [m["name"] for m in r.json().get("models", [])]
-        return jsonify({"models": models})
-    except Exception:
-        return jsonify({"models": []})
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    order = provider_config.get_order()
+    configured = set(provider_config.configured_providers())
+    return jsonify({
+        "configured": sorted(configured),
+        "order": order,
+        "available_models": {
+            name: cls(api_key="").available_models()
+            for name, cls in provider_config.PROVIDER_CLASSES.items()
+        },
+        "labels": PROVIDER_LABELS,
+    })
+
+
+@app.route("/api/settings/key", methods=["POST"])
+def set_settings_key():
+    data = request.get_json(silent=True) or {}
+    provider = data.get("provider")
+    api_key = data.get("api_key", "")
+    if provider not in provider_config.PROVIDER_CLASSES:
+        return jsonify({"error": "Okänd leverantör"}), 400
+    if not api_key.strip():
+        return jsonify({"error": "Nyckel saknas"}), 400
+    provider_config.set_api_key(provider, api_key)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/settings/order", methods=["POST"])
+def set_settings_order():
+    data = request.get_json(silent=True) or {}
+    order = data.get("order", [])
+    for entry in order:
+        if entry.get("provider") not in provider_config.PROVIDER_CLASSES:
+            return jsonify({"error": f"Okänd leverantör: {entry.get('provider')}"}), 400
+    provider_config.set_order(order)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -169,39 +312,38 @@ def upload():
     if "file" not in request.files:
         return jsonify({"error": "Ingen fil bifogad"}), 400
     f = request.files["file"]
-    if not f.filename or not f.filename.lower().endswith(".csv"):
-        return jsonify({"error": "Måste vara en CSV-fil"}), 400
+    suffix = Path(f.filename or "").suffix.lower()
+    if not f.filename or suffix not in SUPPORTED_EXTENSIONS:
+        return jsonify({"error": f"Filtyp måste vara en av: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"}), 400
 
-    model = request.form.get("model", os.getenv("OLLAMA_MODEL", OLLAMA_MODEL))
+    if not provider_config.configured_providers():
+        return jsonify({"error": "Ingen AI-leverantör är konfigurerad. Lägg till en API-nyckel i inställningarna."}), 400
+
     workers = max(1, min(8, int(request.form.get("workers", 2))))
-    ollama_url = os.getenv("OLLAMA_URL", OLLAMA_URL)
-
-    if not ollama_available(ollama_url):
-        return jsonify({"error": f"Kan inte ansluta till Ollama på {ollama_url}"}), 503
+    options = {
+        "tone": request.form.get("tone", ""),
+        "length": request.form.get("length", ""),
+        "audience": request.form.get("audience", ""),
+    }
+    custom_direction = request.form.get("custom_direction", "")
 
     job_id = str(uuid.uuid4())[:8]
     original_name = Path(f.filename).name
-    input_path = UPLOAD_DIR / f"{job_id}.csv"
+    input_path = UPLOAD_DIR / f"{job_id}{suffix}"
     f.save(input_path)
-
-    try:
-        rows, _ = load_csv(str(input_path))
-    except Exception:
-        input_path.unlink(missing_ok=True)
-        return jsonify({"error": "Kunde inte läsa CSV-filen"}), 400
-
-    if not rows:
-        input_path.unlink(missing_ok=True)
-        return jsonify({"error": "Filen är tom"}), 400
 
     job = {
         "id": job_id,
         "filename": original_name,
         "input_path": str(input_path),
-        "model": model,
-        "total": len(rows),
+        "options": options,
+        "custom_direction": custom_direction,
+        "workers": workers,
+        "total": 0,
         "status": "queued",
         "succeeded": 0,
+        "provider": None,
+        "resume_at": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "output_file": None,
     }
@@ -209,9 +351,9 @@ def upload():
         _jobs[job_id] = job
     _save()
 
-    threading.Thread(target=_process, args=(job_id, workers, model, ollama_url), daemon=True).start()
+    threading.Thread(target=_process, args=(job_id,), daemon=True).start()
 
-    return jsonify({"job_id": job_id, "total": len(rows)})
+    return jsonify({"job_id": job_id})
 
 
 @app.route("/api/jobs")
@@ -245,17 +387,20 @@ def download_job(job_id: str):
 
 def _sync_loop() -> None:
     import concurrent.futures
-    import time
 
     interval = int(os.getenv("SYNC_INTERVAL", "300"))
     limit = int(os.getenv("SYNC_LIMIT", "50"))
     workers = int(os.getenv("SYNC_WORKERS", "2"))
     scraper_url = os.getenv("SCRAPER_URL", SCRAPER_URL)
-    ollama_url = os.getenv("OLLAMA_URL", OLLAMA_URL)
-    model = os.getenv("OLLAMA_MODEL", OLLAMA_MODEL)
     log.info("sync worker starting: scraper=%s interval=%ds workers=%d", scraper_url, interval, workers)
 
     while True:
+        chain = provider_config.build_chain()
+        if chain is None:
+            log.warning("sync: ingen AI-leverantör konfigurerad, väntar")
+            time.sleep(interval)
+            continue
+
         try:
             products = fetch_products_missing_description(scraper_url, limit)
         except Exception as e:
@@ -265,9 +410,12 @@ def _sync_loop() -> None:
         if products:
             log.info("sync: hämtade %d produkter utan beskrivning", len(products))
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-                futures = [pool.submit(_process_one, p, ollama_url, model) for p in products]
+                futures = [pool.submit(_process_one, chain, p) for p in products]
                 for fut in concurrent.futures.as_completed(futures):
                     pid, parts, err = fut.result()
+                    if isinstance(err, AllProvidersExhausted):
+                        log.warning("sync: leverantörer uttömda, försöker igen efter %s", err.resume_at.isoformat())
+                        continue
                     if err or not parts or not parts.get("beskrivning"):
                         log.warning("sync: hoppar över produkt %s: %s", pid, err or "tomt svar")
                         continue
