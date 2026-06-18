@@ -15,6 +15,6 @@ RUN adduser -D appuser \
 
 USER appuser
 
-EXPOSE 5000
+EXPOSE 5002
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5002", "--workers", "1", "--threads", "8", "app:app"]
