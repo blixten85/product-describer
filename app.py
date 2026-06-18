@@ -315,6 +315,8 @@ def upload():
     suffix = Path(f.filename or "").suffix.lower()
     if not f.filename or suffix not in SUPPORTED_EXTENSIONS:
         return jsonify({"error": f"Filtyp måste vara en av: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"}), 400
+    allowed_suffixes = {ext.lower(): ext.lower() for ext in SUPPORTED_EXTENSIONS}
+    safe_suffix = allowed_suffixes[suffix]
 
     if not provider_config.configured_providers():
         return jsonify({"error": "Ingen AI-leverantör är konfigurerad. Lägg till en API-nyckel i inställningarna."}), 400
@@ -329,7 +331,7 @@ def upload():
 
     job_id = str(uuid.uuid4())[:8]
     original_name = Path(f.filename).name
-    input_path = UPLOAD_DIR / f"{job_id}{suffix}"
+    input_path = UPLOAD_DIR / f"{job_id}{safe_suffix}"
     f.save(input_path)
 
     job = {
