@@ -1,15 +1,22 @@
 # product-describer — Claude Code Guide
 
 Generates Swedish product descriptions and "varför" justifications via the
-user's own Claude (Anthropic) and/or ChatGPT (OpenAI) API accounts, with
-automatic failover between providers on rate limits/quota errors and
-automatic resume once a quota resets. Accepts CSV, Excel, `.txt`, `.docx`,
-or `.pdf` and outputs a CSV with added `Beskrivning` and `Varför` columns.
+user's own Claude (Anthropic), ChatGPT (OpenAI), Gemini (Google) and/or
+Azure OpenAI Service API accounts, with automatic failover between
+providers on rate limits/quota errors and automatic resume once a quota
+resets. Accepts CSV, Excel, `.txt`, `.docx`, or `.pdf` and outputs a CSV
+with added `Beskrivning` and `Varför` columns.
+
+Note: none of the supported providers can be authenticated via a consumer
+subscription (ChatGPT Plus, Claude Pro, Gemini Advanced, Copilot) — those
+are billed and authenticated completely separately from the developer
+API tier, by design on the providers' end. Gemini's API has a free tier;
+the others are pay-per-use regardless of any subscription also held.
 
 ## Tech Stack
 
 - Python 3, Flask (web UI), Gunicorn
-- Anthropic and OpenAI SDKs (no local/self-hosted model)
+- Anthropic, OpenAI and Google Gen AI SDKs (no local/self-hosted model)
 - Docker / Docker Compose
 
 ## File Overview
@@ -49,9 +56,16 @@ docker compose up -d
 
 - All config (API keys, scraper API URL) via environment variables or the
   `config/credentials/` volume — never hardcoded, never committed
-- API keys saved via the web UI are encrypted at rest (Fernet) using
-  `PROVIDER_CONFIG_MASTER_KEY`; without it, saving a new key fails but
-  reading a pre-existing legacy plaintext key file still works
+- API keys (and, for Azure OpenAI, the endpoint/deployment that go with one)
+  are saved via the web UI as a single encrypted-at-rest (Fernet) JSON blob
+  per provider, using `PROVIDER_CONFIG_MASTER_KEY`; without it, saving a new
+  key returns a clear error but reading a pre-existing legacy plaintext key
+  file still works
+- Adding a provider: a `Provider` subclass in `providers.py`, an entry in
+  `PROVIDER_CLASSES`/`DEFAULT_MODELS` in `provider_config.py`, and a label
+  in `PROVIDER_LABELS` — the settings UI picks it up with no HTML changes.
+  If it needs config beyond an api_key (like Azure's endpoint/deployment),
+  add it to `EXTRA_FIELDS` too
 - Keep prompts in `prompts.py` so they're easy to tune in one place
 - Provider failover order lives in `config/provider_order.json`, filtered
   server-side to providers that currently have a key configured

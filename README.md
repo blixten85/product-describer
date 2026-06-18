@@ -5,8 +5,13 @@
 [![Image](https://ghcr-badge.egpl.dev/blixten85/product-describer/size?color=blue&label=image)](https://github.com/blixten85/product-describer/pkgs/container/product-describer)
 [![License](https://img.shields.io/github/license/blixten85/product-describer)](LICENSE)
 
-Generates Swedish product descriptions via your own Claude (Anthropic) and/or
-ChatGPT (OpenAI) API account.
+Generates Swedish product descriptions via your own Claude (Anthropic),
+ChatGPT (OpenAI), Gemini (Google) and/or Azure OpenAI Service API account.
+
+These are developer API accounts, billed separately from any consumer
+subscription (ChatGPT Plus, Claude Pro, Gemini Advanced, GitHub/Microsoft
+Copilot) you might also have — none of those subscriptions expose an API of
+their own. Gemini's API has a free tier; the others are pay-per-use.
 
 **Input:** CSV, Excel (`.xlsx`), `.txt`, `.docx`, or `.pdf` — for unstructured
 formats, the AI finds every item mentioned automatically.  
@@ -26,16 +31,23 @@ docker compose up -d
 ```
 
 Open **http://your-server:5050** and add at least one API key under
-**Inställningar** (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` as
-environment variables before starting the container).
+**Inställningar** (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
+`GEMINI_API_KEY` / `AZURE_OPENAI_API_KEY` as environment variables before
+starting the container). Azure OpenAI also needs its endpoint URL and
+deployment name, set under **Inställningar** (they aren't secrets, so
+there's no environment variable for them).
 
-Saving a key under **Inställningar** encrypts it at rest, so you also need
-to set `PROVIDER_CONFIG_MASTER_KEY` to a Fernet key before starting the
+Saving a key under **Inställningar** encrypts it at rest, so you **must**
+set `PROVIDER_CONFIG_MASTER_KEY` to a Fernet key before starting the
 container — generate one with:
 
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
+
+If `PROVIDER_CONFIG_MASTER_KEY` isn't set, saving a key under
+**Inställningar** fails with a clear error rather than silently rejecting
+your key — set the variable above and restart the container.
 
 ## Usage
 

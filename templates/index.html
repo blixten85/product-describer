@@ -829,6 +829,16 @@ function renderSettings() {
         }
         row.appendChild(head);
 
+        (settingsCache.extra_fields[provider] || []).forEach(field => {
+            const extraInput = document.createElement('input');
+            extraInput.type = 'text';
+            extraInput.placeholder = field.label;
+            extraInput.id = 'extra-' + provider + '-' + field.name;
+            extraInput.value = (settingsCache.extra_values[provider] || {})[field.name] || '';
+            extraInput.className = 'provider-extra-input';
+            row.appendChild(extraInput);
+        });
+
         const keyRow = document.createElement('div');
         keyRow.className = 'provider-key-row';
         const input = document.createElement('input');
@@ -919,11 +929,19 @@ async function saveKey(provider) {
     const input = document.getElementById('key-' + provider);
     const apiKey = input.value.trim();
     if (!apiKey) { showToast('Klistra in en nyckel först', 'danger'); return; }
+    const extraFields = settingsCache.extra_fields[provider] || [];
+    const body = { provider, api_key: apiKey };
+    for (const field of extraFields) {
+        const extraInput = document.getElementById('extra-' + provider + '-' + field.name);
+        const value = (extraInput?.value || '').trim();
+        if (!value) { showToast(`Fältet "${field.label}" krävs`, 'danger'); return; }
+        body[field.name] = value;
+    }
     try {
         const r = await fetch('/api/settings/key', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider, api_key: apiKey }),
+            body: JSON.stringify(body),
         });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || 'Fel');
