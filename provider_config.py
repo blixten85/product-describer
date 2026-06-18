@@ -54,6 +54,10 @@ def _decrypt_stored_api_key(value: str) -> str:
     raw = value.strip()
     if not raw:
         return ""
+    if not os.getenv(MASTER_KEY_ENV_VAR, ""):
+        # No master key configured means this file was never encrypted by
+        # set_api_key (which requires one) — it's a legacy plaintext file.
+        return raw
     try:
         return _get_fernet().decrypt(raw.encode()).decode().strip()
     except (InvalidToken, ValueError):

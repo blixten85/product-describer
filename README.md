@@ -29,6 +29,14 @@ Open **http://your-server:5050** and add at least one API key under
 **Inställningar** (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` as
 environment variables before starting the container).
 
+Saving a key under **Inställningar** encrypts it at rest, so you also need
+to set `PROVIDER_CONFIG_MASTER_KEY` to a Fernet key before starting the
+container — generate one with:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
 ## Usage
 
 1. Drag and drop a file (CSV, Excel, txt, docx or pdf)
