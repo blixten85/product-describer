@@ -4,7 +4,7 @@ services:
     container_name: product-describer
     restart: unless-stopped
     ports:
-      - "5050:5000"
+      - "5002:5002"
     volumes:
       - uploads:/app/uploads
       - outputs:/app/outputs
