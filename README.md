@@ -25,7 +25,7 @@ Two modes are supported:
 docker compose up -d
 ```
 
-Open **http://your-server:5000** and add at least one API key under
+Open **http://your-server:5050** and add at least one API key under
 **Inställningar** (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` as
 environment variables before starting the container).
 
