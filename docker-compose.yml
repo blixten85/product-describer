@@ -1,6 +1,6 @@
 services:
   app:
-    build: .
+    image: ghcr.io/blixten85/product-describer:latest
     container_name: product-describer
     restart: unless-stopped
     ports:
@@ -11,7 +11,7 @@ services:
       - config:/app/config
 
   sync:
-    build: .
+    image: ghcr.io/blixten85/product-describer:latest
     container_name: product-describer-sync
     restart: unless-stopped
     profiles: [sync]
