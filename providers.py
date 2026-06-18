@@ -79,6 +79,8 @@ class Provider(abc.ABC):
 PROVIDER_LABELS = {
     "anthropic": "Claude (Anthropic)",
     "openai": "ChatGPT (OpenAI)",
+    "gemini": "Gemini (Google)",
+    "azure_openai": "Azure OpenAI Service",
 }
 
 
@@ -147,6 +149,87 @@ class OpenAIProvider(Provider):
 
     def available_models(self) -> list[str]:
         return list(self.DEFAULT_MODELS)
+
+
+class GeminiProvider(Provider):
+    name = "gemini"
+
+    DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
+
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from google import genai
+            self._client = genai.Client(api_key=self._api_key)
+        return self._client
+
+    def generate(self, system_prompt: str, user_message: str, model: str) -> str:
+        from google.genai import errors as genai_errors
+        client = self._get_client()
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=user_message,
+                config={"system_instruction": system_prompt},
+            )
+        except genai_errors.ClientError as e:
+            if getattr(e, "code", None) == 429:
+                raise RateLimitExceeded(self.name, retry_after=_retry_after_seconds(e)) from e
+            raise
+        return resp.text or ""
+
+    def available_models(self) -> list[str]:
+        return list(self.DEFAULT_MODELS)
+
+
+class AzureOpenAIProvider(Provider):
+    """OpenAI models hosted on the caller's own Azure subscription.
+
+    Unlike the other providers, the model is selected by the deployment
+    name configured in the caller's Azure resource, not a fixed model id —
+    so there's no static model list, and the "model" passed to generate()
+    is the deployment name set up when the key was saved.
+    """
+
+    name = "azure_openai"
+
+    def __init__(self, api_key: str, endpoint: str = "", deployment: str = "", api_version: str = "2024-10-21"):
+        self._api_key = api_key
+        self._endpoint = endpoint
+        self._deployment = deployment
+        self._api_version = api_version
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            import openai
+            self._client = openai.AzureOpenAI(
+                api_key=self._api_key,
+                azure_endpoint=self._endpoint,
+                api_version=self._api_version,
+            )
+        return self._client
+
+    def generate(self, system_prompt: str, user_message: str, model: str) -> str:
+        import openai
+        client = self._get_client()
+        try:
+            resp = client.chat.completions.create(
+                model=model or self._deployment,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+            )
+        except openai.RateLimitError as e:
+            raise RateLimitExceeded(self.name, retry_after=_retry_after_seconds(e)) from e
+        return resp.choices[0].message.content or ""
+
+    def available_models(self) -> list[str]:
+        return [self._deployment] if self._deployment else []
 
 
 def _retry_after_seconds(exc: Exception) -> float | None:

@@ -12,7 +12,14 @@ import stat
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
-from providers import AnthropicProvider, OpenAIProvider, ProviderChain, ProviderSpec
+from providers import (
+    AnthropicProvider,
+    AzureOpenAIProvider,
+    GeminiProvider,
+    OpenAIProvider,
+    ProviderChain,
+    ProviderSpec,
+)
 
 CONFIG_DIR = Path(os.getenv("CONFIG_DIR", "config"))
 CREDENTIALS_DIR = CONFIG_DIR / "credentials"
@@ -22,11 +29,25 @@ MASTER_KEY_ENV_VAR = "PROVIDER_CONFIG_MASTER_KEY"
 PROVIDER_CLASSES = {
     "anthropic": AnthropicProvider,
     "openai": OpenAIProvider,
+    "gemini": GeminiProvider,
+    "azure_openai": AzureOpenAIProvider,
 }
 
 DEFAULT_MODELS = {
     "anthropic": "claude-sonnet-4-6",
     "openai": "gpt-4.1-mini",
+    "gemini": "gemini-2.5-flash",
+    "azure_openai": "",
+}
+
+# Fields beyond api_key that a provider needs before it can be used. Azure
+# OpenAI has no fixed model list — the caller's own Azure resource maps a
+# deployment name to whichever model they provisioned there.
+EXTRA_FIELDS = {
+    "azure_openai": [
+        {"name": "endpoint", "label": "Azure-endpoint (https://<resurs>.openai.azure.com)"},
+        {"name": "deployment", "label": "Deployment-namn"},
+    ],
 }
 
 
@@ -48,13 +69,13 @@ def _get_fernet() -> Fernet:
     return Fernet(key.encode())
 
 
-def _decrypt_stored_api_key(value: str) -> str:
+def _decrypt_stored_value(value: str) -> str:
     raw = value.strip()
     if not raw:
         return ""
     if not os.getenv(MASTER_KEY_ENV_VAR, ""):
         # No master key configured means this file was never encrypted by
-        # set_api_key (which requires one) — it's a legacy plaintext file.
+        # set_provider_config (which requires one) — it's a legacy plaintext file.
         return raw
     try:
         return _get_fernet().decrypt(raw.encode()).decode().strip()
@@ -63,26 +84,61 @@ def _decrypt_stored_api_key(value: str) -> str:
         return raw
 
 
-def get_api_key(provider_name: str) -> str:
+def _parse_config_blob(raw: str) -> dict:
+    """A stored blob is either a JSON {"api_key": ..., <extra fields>} object
+    (current format) or a bare key string (format used before extra fields
+    like Azure's endpoint/deployment existed). Treat anything that doesn't
+    parse as a JSON object with an api_key as a bare legacy key.
+    """
+    if not raw:
+        return {"api_key": ""}
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict) and "api_key" in data:
+            return data
+    except json.JSONDecodeError:
+        pass
+    return {"api_key": raw}
+
+
+def get_provider_config(provider_name: str) -> dict:
+    """Returns {"api_key": str, **extra fields}, "" for anything unset."""
+    path = _key_path(provider_name)
+    config = _parse_config_blob(_decrypt_stored_value(path.read_text())) if path.is_file() else {"api_key": ""}
     env_value = os.getenv(f"{provider_name.upper()}_API_KEY", "")
     if env_value:
-        return env_value
-    path = _key_path(provider_name)
-    if path.is_file():
-        return _decrypt_stored_api_key(path.read_text())
-    return ""
+        config["api_key"] = env_value
+    return config
 
 
-def set_api_key(provider_name: str, api_key: str) -> None:
+def set_provider_config(provider_name: str, updates: dict) -> None:
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+    config = get_provider_config(provider_name)
+    config.update(updates)
+    config["api_key"] = config.get("api_key", "").strip()
     path = _key_path(provider_name)
-    encrypted = _get_fernet().encrypt(api_key.strip().encode()).decode()
+    encrypted = _get_fernet().encrypt(json.dumps(config).encode()).decode()
     path.write_text(encrypted)
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 
+def get_api_key(provider_name: str) -> str:
+    return get_provider_config(provider_name).get("api_key", "")
+
+
+def set_api_key(provider_name: str, api_key: str) -> None:
+    set_provider_config(provider_name, {"api_key": api_key})
+
+
+def is_provider_ready(provider_name: str, config: dict | None = None) -> bool:
+    config = config if config is not None else get_provider_config(provider_name)
+    if not config.get("api_key"):
+        return False
+    return all(config.get(field["name"]) for field in EXTRA_FIELDS.get(provider_name, []))
+
+
 def configured_providers() -> list[str]:
-    return [name for name in PROVIDER_CLASSES if get_api_key(name)]
+    return [name for name in PROVIDER_CLASSES if is_provider_ready(name)]
 
 
 def get_order() -> list[dict]:
@@ -109,11 +165,13 @@ def build_chain() -> ProviderChain | None:
     specs = []
     for entry in order:
         provider_name = entry["provider"]
-        api_key = get_api_key(provider_name)
-        if not api_key:
+        config = get_provider_config(provider_name)
+        if not is_provider_ready(provider_name, config):
             continue
         provider_cls = PROVIDER_CLASSES[provider_name]
-        specs.append(ProviderSpec(provider=provider_cls(api_key), model=entry["model"]))
+        extra = {field["name"]: config[field["name"]] for field in EXTRA_FIELDS.get(provider_name, [])}
+        provider = provider_cls(config["api_key"], **extra)
+        specs.append(ProviderSpec(provider=provider, model=entry["model"]))
     if not specs:
         return None
     return ProviderChain(specs)

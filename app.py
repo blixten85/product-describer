@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file
+from werkzeug.exceptions import HTTPException
 
 import provider_config
 from extractors import SUPPORTED_EXTENSIONS, extract_rows
@@ -36,6 +37,22 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 _FORMULA_PREFIX = re.compile(r"^[=+\-@\t\r]")
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(exc):
+    """Make sure every error reaches the frontend as JSON.
+
+    Without this, an unhandled exception (e.g. a missing
+    PROVIDER_CONFIG_MASTER_KEY) falls through to Flask's HTML error page,
+    which the settings UI's fetch().json() can't parse — so a real
+    server-side misconfiguration shows up to the user as a confusing
+    "unexpected token" error that looks like a rejected API key.
+    """
+    if isinstance(exc, HTTPException):
+        return exc
+    log.exception("Unhandled error handling %s %s", request.method, request.path)
+    return jsonify({"error": "Internt serverfel. Se serverloggen för detaljer."}), 500
 
 
 def _safe_csv(value: str) -> str:
@@ -272,6 +289,13 @@ def api_status():
 def get_settings():
     order = provider_config.get_order()
     configured = set(provider_config.configured_providers())
+    extra_values = {
+        name: {
+            field["name"]: provider_config.get_provider_config(name).get(field["name"], "")
+            for field in fields
+        }
+        for name, fields in provider_config.EXTRA_FIELDS.items()
+    }
     return jsonify({
         "configured": sorted(configured),
         "order": order,
@@ -280,6 +304,8 @@ def get_settings():
             for name, cls in provider_config.PROVIDER_CLASSES.items()
         },
         "labels": PROVIDER_LABELS,
+        "extra_fields": provider_config.EXTRA_FIELDS,
+        "extra_values": extra_values,
     })
 
 
@@ -292,7 +318,18 @@ def set_settings_key():
         return jsonify({"error": "Okänd leverantör"}), 400
     if not api_key.strip():
         return jsonify({"error": "Nyckel saknas"}), 400
-    provider_config.set_api_key(provider, api_key)
+
+    extra = {}
+    for field in provider_config.EXTRA_FIELDS.get(provider, []):
+        value = (data.get(field["name"]) or "").strip()
+        if not value:
+            return jsonify({"error": f'Fältet "{field["label"]}" krävs'}), 400
+        extra[field["name"]] = value
+
+    try:
+        provider_config.set_provider_config(provider, {"api_key": api_key, **extra})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
     return jsonify({"ok": True})
 
 
