@@ -1,13 +1,15 @@
-FROM python:3.14-slim
+FROM python:3.14-alpine
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+    && apk del .build-deps
 
 COPY . .
 
-RUN adduser --disabled-password --gecos '' appuser \
+RUN adduser -D appuser \
     && mkdir -p uploads outputs config \
     && chown appuser:appuser uploads outputs config
 
