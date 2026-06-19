@@ -1,0 +1,26 @@
+templates:
+  - changed-files:
+    - any-glob-to-any-file: 'templates/**'
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: 'tests/**'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/**'
+
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/Dockerfile'
+      - 'docker-compose*.yml'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**.md'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file: '**/requirements*.txt'
