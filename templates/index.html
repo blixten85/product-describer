@@ -570,6 +570,7 @@
             width: 100%;
             max-height: 85vh;
             overflow-y: auto;
+            overscroll-behavior: contain;
         }
 
         .modal-header {
@@ -798,11 +799,13 @@ async function checkStatus() {
 // ── Settings modal ───────────────────────────────────────────────────────
 async function openSettings() {
     document.getElementById('settingsModal').classList.add('show');
+    document.body.style.overflow = 'hidden';
     settingsCache = await fetch('/api/settings').then(r => r.json());
     renderSettings();
 }
 function closeSettings() {
     document.getElementById('settingsModal').classList.remove('show');
+    document.body.style.overflow = '';
 }
 
 function renderSettings() {
