@@ -142,22 +142,38 @@ def configured_providers() -> list[str]:
 
 
 def get_order() -> list[dict]:
-    """Returns [{"provider": "anthropic", "model": "..."}], priority first."""
+    """Returns [{"provider": "anthropic", "model": "..."}], priority first.
+
+    A configured provider that's missing from a previously saved order (e.g.
+    its key was added after the order was last saved) is appended at the end
+    rather than dropped.
+    """
+    configured = configured_providers()
     if ORDER_FILE.is_file():
         with open(ORDER_FILE) as f:
             saved = json.load(f)
-        configured = set(configured_providers())
-        return [entry for entry in saved if entry["provider"] in configured]
-    return [
+        order = [entry for entry in saved if entry["provider"] in configured]
+    else:
+        order = []
+    seen = {entry["provider"] for entry in order}
+    order.extend(
         {"provider": name, "model": DEFAULT_MODELS[name]}
-        for name in configured_providers()
-    ]
+        for name in configured
+        if name not in seen
+    )
+    return order
 
 
 def set_order(order: list[dict]) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(ORDER_FILE, "w") as f:
         json.dump(order, f, indent=2)
+
+
+def remove_provider_config(provider_name: str) -> None:
+    path = _key_path(provider_name)
+    if path.is_file():
+        path.unlink()
 
 
 def build_chain() -> ProviderChain | None:

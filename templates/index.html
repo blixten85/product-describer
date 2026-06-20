@@ -853,6 +853,13 @@ function renderSettings() {
         saveBtn.textContent = 'Spara';
         saveBtn.addEventListener('click', () => saveKey(provider));
         keyRow.append(input, saveBtn);
+        if (settingsCache.configured.includes(provider)) {
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-ghost';
+            removeBtn.textContent = 'Ta bort';
+            removeBtn.addEventListener('click', () => removeKey(provider));
+            keyRow.appendChild(removeBtn);
+        }
         row.appendChild(keyRow);
 
         const modelSelect = document.createElement('select');
@@ -954,6 +961,21 @@ async function saveKey(provider) {
         if (!settingsCache.order.some(o => o.provider === provider)) {
             settingsCache.order.push({ provider, model: (settingsCache.available_models[provider] || [''])[0] });
         }
+        renderSettings();
+        checkStatus();
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function removeKey(provider) {
+    if (!confirm(`Ta bort nyckeln för ${settingsCache.labels[provider] || provider}?`)) return;
+    try {
+        const r = await fetch('/api/settings/key/' + provider, { method: 'DELETE' });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Fel');
+        showToast('Nyckel borttagen', 'success');
+        settingsCache = await fetch('/api/settings').then(res => res.json());
         renderSettings();
         checkStatus();
     } catch (e) {
