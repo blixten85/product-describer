@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "5050:5050"
+    environment:
+      PROVIDER_CONFIG_MASTER_KEY: ${PROVIDER_CONFIG_MASTER_KEY:?Set PROVIDER_CONFIG_MASTER_KEY in .env — generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"}
     volumes:
       - uploads:/app/uploads
       - outputs:/app/outputs
@@ -17,6 +19,7 @@ services:
     profiles: [sync]
     command: ["python", "main.py", "sync", "--watch"]
     environment:
+      PROVIDER_CONFIG_MASTER_KEY: ${PROVIDER_CONFIG_MASTER_KEY:?Set PROVIDER_CONFIG_MASTER_KEY in .env — generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"}
       SCRAPER_URL: ${SCRAPER_URL:-http://scraper:8000}
       SCRAPER_API_KEY: ${SCRAPER_API_KEY:-}
       SCRAPER_API_KEY_FILE: ${SCRAPER_API_KEY_FILE:-}
