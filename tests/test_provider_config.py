@@ -104,6 +104,33 @@ class TestConfiguredProvidersAndOrder:
         order = provider_config.get_order()
         assert order == [{"provider": "anthropic", "model": "claude-sonnet-4-6"}]
 
+    def test_get_order_appends_configured_provider_missing_from_saved_order(self, master_key):
+        provider_config.set_api_key("anthropic", "a-key")
+        provider_config.set_order([{"provider": "anthropic", "model": "claude-sonnet-4-6"}])
+        provider_config.set_api_key("gemini", "g-key")  # configured after order was saved
+        order = provider_config.get_order()
+        assert [entry["provider"] for entry in order] == ["anthropic", "gemini"]
+        assert order[1]["model"] == provider_config.DEFAULT_MODELS["gemini"]
+
+
+class TestRemoveProviderConfig:
+    def test_remove_deletes_key_and_drops_provider_from_configured(self, master_key):
+        provider_config.set_api_key("openai", "o-key")
+        assert "openai" in provider_config.configured_providers()
+        provider_config.remove_provider_config("openai")
+        assert provider_config.get_api_key("openai") == ""
+        assert "openai" not in provider_config.configured_providers()
+
+    def test_remove_drops_provider_from_get_order(self, master_key):
+        provider_config.set_api_key("anthropic", "a-key")
+        provider_config.set_api_key("openai", "o-key")
+        provider_config.remove_provider_config("openai")
+        order = provider_config.get_order()
+        assert [entry["provider"] for entry in order] == ["anthropic"]
+
+    def test_remove_is_a_noop_for_unconfigured_provider(self, master_key):
+        provider_config.remove_provider_config("openai")  # should not raise
+
 
 class TestBuildChain:
     def test_returns_none_when_nothing_configured(self, master_key):

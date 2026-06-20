@@ -333,6 +333,14 @@ def set_settings_key():
     return jsonify({"ok": True})
 
 
+@app.route("/api/settings/key/<provider>", methods=["DELETE"])
+def delete_settings_key(provider):
+    if provider not in provider_config.PROVIDER_CLASSES:
+        return jsonify({"error": "Okänd leverantör"}), 400
+    provider_config.remove_provider_config(provider)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/settings/order", methods=["POST"])
 def set_settings_order():
     data = request.get_json(silent=True) or {}
