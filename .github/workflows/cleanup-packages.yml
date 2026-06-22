@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Delete untagged and old SHA versions
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data: versions } = await github.rest.packages.getAllPackageVersionsForPackageOwnedByAuthenticatedUser({
