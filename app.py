@@ -328,8 +328,9 @@ def set_settings_key():
 
     try:
         provider_config.set_provider_config(provider, {"api_key": api_key, **extra})
-    except RuntimeError as e:
-        return jsonify({"error": str(e)}), 500
+    except RuntimeError:
+        log.exception("Failed to save provider configuration for provider '%s'", provider)
+        return jsonify({"error": "Ett internt fel uppstod"}), 500
     return jsonify({"ok": True})
 
 
