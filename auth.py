@@ -56,17 +56,22 @@ def create_account(email: str, password: str) -> tuple[str | None, str | None]:
     if len(password) < 8:
         return None, "Lösenordet måste vara minst 8 tecken"
 
-    is_first_account = account_count() == 0
     account_id = str(uuid.uuid4())[:12]
     password_hash = generate_password_hash(password)
 
+    # BEGIN IMMEDIATE tar ett skrivlås innan COUNT-koll + INSERT, så att två
+    # samtidiga första-registreringar inte båda tror sig vara först och
+    # kör migreringen dubbelt (eller mot ett konto som inte "vann").
     with _db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        is_first_account = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 0
         try:
             conn.execute(
                 "INSERT INTO accounts (id, email, password_hash, created_at) VALUES (?, ?, ?, datetime('now'))",
                 (account_id, email, password_hash),
             )
         except sqlite3.IntegrityError:
+            conn.rollback()
             return None, "E-postadressen är redan registrerad"
 
     if is_first_account:
@@ -104,10 +109,20 @@ def _migrate_legacy_data(account_id: str) -> None:
     legacy_order = CONFIG_DIR / "provider_order.json"
 
     if legacy_credentials.is_dir():
-        new_credentials = provider_config.credentials_dir(account_id)
-        new_credentials.mkdir(parents=True, exist_ok=True)
+        # Läs+skriv via provider_config:s vanliga väg istället för att bara
+        # flytta filerna rakt av, så en legacy PLAINTEXT-nyckel blir krypterad
+        # i samma veva, inte fortsatt klartext på den nya platsen.
         for item in legacy_credentials.iterdir():
-            shutil.move(str(item), str(new_credentials / item.name))
+            provider_name = next(
+                (name for name, filename in provider_config._KEY_FILENAMES.items() if filename == item.name),
+                None,
+            )
+            if provider_name is None:
+                continue
+            config = provider_config._parse_config_blob(provider_config._decrypt_stored_value(item.read_text()))
+            if config.get("api_key"):
+                provider_config.set_provider_config(account_id, provider_name, config)
+            item.unlink()
         legacy_credentials.rmdir()
 
     if legacy_order.is_file():

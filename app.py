@@ -37,6 +37,10 @@ RESUME_CHECK_INTERVAL = int(os.getenv("RESUME_CHECK_INTERVAL", "120"))
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
+# Lax blockerar att sessionscookien skickas med en cross-site POST (formulär
+# på en annan sida som postar hit) — den huvudsakliga CSRF-vektorn för de
+# state-ändrande rutterna (logout, inställningar, uppladdning).
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -413,7 +417,9 @@ def delete_settings_key(provider):
 @app.route("/api/settings/order", methods=["POST"])
 @login_required
 def set_settings_order():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Ogiltig eller saknad JSON-data"}), 400
     order = data.get("order", [])
     for entry in order:
         if entry.get("provider") not in provider_config.PROVIDER_CLASSES:
@@ -446,9 +452,11 @@ def upload():
     }
     custom_direction = request.form.get("custom_direction", "")
 
-    job_id = str(uuid.uuid4())[:8]
+    job_id = uuid.uuid4().hex
     original_name = Path(f.filename).name
-    input_path = UPLOAD_DIR / f"{job_id}{safe_suffix}"
+    account_upload_dir = UPLOAD_DIR / account_id
+    account_upload_dir.mkdir(parents=True, exist_ok=True)
+    input_path = account_upload_dir / f"{job_id}{safe_suffix}"
     f.save(input_path)
 
     job = {

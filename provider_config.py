@@ -118,7 +118,7 @@ def set_provider_config(account_id: str, provider_name: str, updates: dict) -> N
     credentials_dir(account_id).mkdir(parents=True, exist_ok=True)
     config = get_provider_config(account_id, provider_name)
     config.update(updates)
-    config["api_key"] = config.get("api_key", "").strip()
+    config = {k: v.strip() if isinstance(v, str) else v for k, v in config.items()}
     path = _key_path(account_id, provider_name)
     encrypted = _get_fernet().encrypt(json.dumps(config).encode()).decode()
     path.write_text(encrypted)

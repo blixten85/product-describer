@@ -3,12 +3,15 @@ import json
 import pytest
 
 import auth
+import provider_config
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(auth, "DB_PATH", tmp_path / "accounts.db")
+    monkeypatch.setattr(provider_config, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(provider_config, "ACCOUNTS_DIR", tmp_path / "accounts")
     monkeypatch.chdir(tmp_path)
 
 
@@ -67,17 +70,22 @@ class TestGetEmail:
 
 
 class TestLegacyMigration:
-    def test_first_account_inherits_legacy_credentials(self, tmp_path):
+    def test_first_account_inherits_legacy_credentials(self, tmp_path, monkeypatch):
+        from cryptography.fernet import Fernet
+
+        import provider_config
+
+        monkeypatch.setenv(provider_config.MASTER_KEY_ENV_VAR, Fernet.generate_key().decode())
         legacy_creds = tmp_path / "credentials"
         legacy_creds.mkdir()
-        (legacy_creds / "anthropic_api_key").write_text("encrypted-blob")
+        (legacy_creds / "anthropic_api_key").write_text("legacy-plaintext-key")
 
         account_id, _ = auth.create_account("user@example.com", "longenoughpw")
 
-        import provider_config
-        new_path = provider_config.credentials_dir(account_id) / "anthropic_api_key"
-        assert new_path.is_file()
-        assert new_path.read_text() == "encrypted-blob"
+        # Migrerad nyckel ska gå genom den vanliga skrivvägen (krypteras på
+        # nytt), inte bara flyttas rakt av — verifiera via läsvägen istället
+        # för filinnehållet, som nu är ett krypterat blob, inte klartext.
+        assert provider_config.get_api_key(account_id, "anthropic") == "legacy-plaintext-key"
         assert not legacy_creds.exists()
 
     def test_first_account_inherits_legacy_order(self, tmp_path):
@@ -102,14 +110,18 @@ class TestLegacyMigration:
         jobs = json.loads(jobs_file.read_text())
         assert jobs[0]["account_id"] == account_id
 
-    def test_second_account_does_not_get_legacy_data(self, tmp_path):
+    def test_second_account_does_not_get_legacy_data(self, tmp_path, monkeypatch):
+        from cryptography.fernet import Fernet
+
+        import provider_config
+
+        monkeypatch.setenv(provider_config.MASTER_KEY_ENV_VAR, Fernet.generate_key().decode())
         legacy_creds = tmp_path / "credentials"
         legacy_creds.mkdir()
-        (legacy_creds / "anthropic_api_key").write_text("encrypted-blob")
+        (legacy_creds / "anthropic_api_key").write_text("legacy-plaintext-key")
 
         first_id, _ = auth.create_account("first@example.com", "longenoughpw")
         second_id, _ = auth.create_account("second@example.com", "longenoughpw")
 
-        import provider_config
-        assert not (provider_config.credentials_dir(second_id) / "anthropic_api_key").is_file()
-        assert (provider_config.credentials_dir(first_id) / "anthropic_api_key").is_file()
+        assert provider_config.get_api_key(second_id, "anthropic") == ""
+        assert provider_config.get_api_key(first_id, "anthropic") == "legacy-plaintext-key"
