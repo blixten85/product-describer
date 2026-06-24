@@ -72,3 +72,7 @@ docker compose up -d
 - A job's extracted rows and partial per-row results are cached to disk
   (`outputs/{job_id}_rows.json` / `_partial.json`) so a pause (provider
   exhaustion) never loses completed work, even across restarts
+- Unexpected exceptions (Flask error handler, sync loop) call
+  `report_error_to_github()` (`github_report.py`) — best-effort, opens a
+  `@claude`-tagged GitHub issue with secrets/emails/paths redacted if
+  `GITHUB_ERROR_REPORT_TOKEN` is set, no-ops otherwise
