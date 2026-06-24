@@ -28,7 +28,7 @@ log = logging.getLogger("describer")
 
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
-JOBS_FILE = Path("jobs.json")
+JOBS_FILE = OUTPUT_DIR / "jobs.json"
 RESUME_CHECK_INTERVAL = int(os.getenv("RESUME_CHECK_INTERVAL", "120"))
 
 app = Flask(__name__)

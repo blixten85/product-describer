@@ -1211,7 +1211,34 @@ function dismissToast(el) {
     el.addEventListener('animationend', () => el.remove(), { once: true });
 }
 
+// ── Options persistence (ton/längd/målgrupp/egna instruktioner) ────────────
+const OPTIONS_STORAGE_KEY = 'productOptions';
+const OPTION_FIELDS = ['toneSelect', 'lengthSelect', 'audienceInput', 'customDirection'];
+
+function loadOptionsFromStorage() {
+    let saved;
+    try {
+        saved = JSON.parse(localStorage.getItem(OPTIONS_STORAGE_KEY) || '{}');
+    } catch {
+        saved = {};
+    }
+    for (const id of OPTION_FIELDS) {
+        if (saved[id] !== undefined) document.getElementById(id).value = saved[id];
+    }
+}
+
+function saveOptionsToStorage() {
+    const values = {};
+    for (const id of OPTION_FIELDS) values[id] = document.getElementById(id).value;
+    localStorage.setItem(OPTIONS_STORAGE_KEY, JSON.stringify(values));
+}
+
+for (const id of OPTION_FIELDS) {
+    document.getElementById(id).addEventListener('input', saveOptionsToStorage);
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
+loadOptionsFromStorage();
 checkStatus();
 loadJobs().then(jobs => {
     if (jobs && jobs.some(j => j.status === 'processing' || j.status === 'queued' || j.status === 'paused')) startPolling();
