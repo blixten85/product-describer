@@ -20,6 +20,7 @@ import requests
 
 import provider_config
 from extractors import extract_rows
+from github_report import report_error_to_github
 from prompts import build_system_prompt
 from providers import AllProvidersExhausted, ProviderChain
 
@@ -207,6 +208,9 @@ def cmd_sync(args) -> None:
             products = fetch_products_missing_description(args.scraper_url, args.limit)
         except Exception as e:
             log.error("Kunde inte hämta från scrapern: %s", e)
+            report_error_to_github(
+                "blixten85/product-describer", "Sync: kunde inte hämta från scrapern", e
+            )
             products = []
 
         if products:
@@ -231,6 +235,12 @@ def cmd_sync(args) -> None:
                         log.info("Beskrev produkt %s", pid)
                     except Exception as e:
                         log.error("Kunde inte spara beskrivning för %s: %s", pid, e)
+                        report_error_to_github(
+                            "blixten85/product-describer",
+                            "Sync: kunde inte spara beskrivning",
+                            e,
+                            context={"product_id": str(pid)},
+                        )
         else:
             log.info("Inga produkter att beskriva just nu")
 

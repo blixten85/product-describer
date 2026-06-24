@@ -14,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 import provider_config
 from extractors import SUPPORTED_EXTENSIONS, extract_rows
+from github_report import report_error_to_github
 from main import (
     SCRAPER_URL,
     _process_one,
@@ -52,6 +53,12 @@ def handle_unexpected_error(exc):
     if isinstance(exc, HTTPException):
         return exc
     log.exception("Unhandled error handling %s %s", request.method, request.path)
+    report_error_to_github(
+        "blixten85/product-describer",
+        f"Oväntat fel: {request.method} {request.path}",
+        exc,
+        context={"method": request.method, "path": request.path},
+    )
     return jsonify({"error": "Internt serverfel. Se serverloggen för detaljer."}), 500
 
 
