@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="sv" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrera — Product Describer</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0c0e14; --bg-2: #13161f; --border: rgba(255,255,255,0.07);
+            --text: #e4e2dc; --text-dim: #6b7280; --accent: #f0a500; --danger: #ef4444;
+            --r: 12px;
+        }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: system-ui, sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: var(--bg-2); border: 1px solid var(--border);
+            border-radius: var(--r); padding: 32px; width: 100%; max-width: 360px;
+        }
+        h1 { font-size: 1.25rem; margin-bottom: 8px; }
+        p.hint { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 20px; }
+        label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 6px; }
+        input {
+            width: 100%; padding: 10px 12px; margin-bottom: 16px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text); font-size: 1rem;
+        }
+        button {
+            width: 100%; padding: 10px; border: none; border-radius: 8px;
+            background: var(--accent); color: #1a1200; font-weight: 600; cursor: pointer;
+        }
+        .error { color: var(--danger); font-size: 0.85rem; margin-bottom: 16px; }
+        .link { text-align: center; margin-top: 16px; font-size: 0.85rem; }
+        .link a { color: var(--accent); text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Skapa konto</h1>
+        <p class="hint">Du anger sedan dina egna AI-leverantörsnycklar (Claude/ChatGPT/Gemini/Azure) under Inställningar — varje konto är helt separat.</p>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="POST">
+            <label for="email">E-postadress</label>
+            <input type="email" id="email" name="email" required autofocus>
+            <label for="password">Lösenord (minst 8 tecken)</label>
+            <input type="password" id="password" name="password" minlength="8" required>
+            <button type="submit">Skapa konto</button>
+        </form>
+        <div class="link">Har du redan ett konto? <a href="{{ url_for('login') }}">Logga in</a></div>
+    </div>
+</body>
+</html>

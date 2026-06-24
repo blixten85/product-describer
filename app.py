@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import functools
 import json
 import logging
 import os
@@ -9,9 +10,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.exceptions import HTTPException
 
+import auth
 import provider_config
 from extractors import SUPPORTED_EXTENSIONS, extract_rows
 from github_report import report_error_to_github
@@ -34,10 +36,26 @@ RESUME_CHECK_INTERVAL = int(os.getenv("RESUME_CHECK_INTERVAL", "120"))
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB
+app.secret_key = os.environ["FLASK_SECRET_KEY"]
+# Lax blockerar att sessionscookien skickas med en cross-site POST (formulär
+# på en annan sida som postar hit) — den huvudsakliga CSRF-vektorn för de
+# state-ändrande rutterna (logout, inställningar, uppladdning).
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 _FORMULA_PREFIX = re.compile(r"^[=+\-@\t\r]")
+
+
+def login_required(view):
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        if "account_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Inte inloggad"}), 401
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return wrapped
 
 
 @app.errorhandler(Exception)
@@ -85,9 +103,13 @@ def _save() -> None:
             json.dump(jobs, f, indent=2)
 
 
-def _get_jobs() -> list[dict]:
+def _get_jobs(account_id: str) -> list[dict]:
     with _lock:
-        return sorted(_jobs.values(), key=lambda j: j["created_at"], reverse=True)
+        return sorted(
+            (j for j in _jobs.values() if j.get("account_id") == account_id),
+            key=lambda j: j["created_at"],
+            reverse=True,
+        )
 
 
 _load_from_disk()
@@ -144,9 +166,10 @@ def _process(job_id: str) -> None:
         workers = job["workers"]
         options = job.get("options") or {}
         custom_direction = job.get("custom_direction", "")
+        account_id = job["account_id"]
     _save()
 
-    chain = provider_config.build_chain()
+    chain = provider_config.build_chain(account_id)
     if chain is None:
         with _lock:
             job["status"] = "error"
@@ -281,24 +304,64 @@ def _resume_watcher() -> None:
 threading.Thread(target=_resume_watcher, daemon=True, name="resume-watcher").start()
 
 
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "GET":
+        return render_template("signup.html", error=None)
+    email = request.form.get("email", "")
+    password = request.form.get("password", "")
+    account_id, error = auth.create_account(email, password)
+    if error:
+        return render_template("signup.html", error=error), 400
+    session["account_id"] = account_id
+    return redirect(url_for("index"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html", error=None)
+    email = request.form.get("email", "")
+    password = request.form.get("password", "")
+    account_id = auth.verify_login(email, password)
+    if not account_id:
+        return render_template("login.html", error="Fel e-postadress eller lösenord"), 401
+    session["account_id"] = account_id
+    return redirect(url_for("index"))
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/")
+@login_required
 def index():
-    return render_template("index.html", providers=provider_config.PROVIDER_CLASSES.keys())
+    return render_template(
+        "index.html",
+        providers=provider_config.PROVIDER_CLASSES.keys(),
+        email=auth.get_email(session["account_id"]),
+    )
 
 
 @app.route("/api/status")
+@login_required
 def api_status():
-    configured = provider_config.configured_providers()
+    configured = provider_config.configured_providers(session["account_id"])
     return jsonify({"configured": configured, "ready": bool(configured)})
 
 
 @app.route("/api/settings", methods=["GET"])
+@login_required
 def get_settings():
-    order = provider_config.get_order()
-    configured = set(provider_config.configured_providers())
+    account_id = session["account_id"]
+    order = provider_config.get_order(account_id)
+    configured = set(provider_config.configured_providers(account_id))
     extra_values = {
         name: {
-            field["name"]: provider_config.get_provider_config(name).get(field["name"], "")
+            field["name"]: provider_config.get_provider_config(account_id, name).get(field["name"], "")
             for field in fields
         }
         for name, fields in provider_config.EXTRA_FIELDS.items()
@@ -317,6 +380,7 @@ def get_settings():
 
 
 @app.route("/api/settings/key", methods=["POST"])
+@login_required
 def set_settings_key():
     data = request.get_json(silent=True) or {}
     provider = data.get("provider")
@@ -334,7 +398,7 @@ def set_settings_key():
         extra[field["name"]] = value
 
     try:
-        provider_config.set_provider_config(provider, {"api_key": api_key, **extra})
+        provider_config.set_provider_config(session["account_id"], provider, {"api_key": api_key, **extra})
     except RuntimeError:
         log.exception("Failed to save provider configuration for provider '%s'", provider)
         return jsonify({"error": "Ett internt fel uppstod"}), 500
@@ -342,25 +406,30 @@ def set_settings_key():
 
 
 @app.route("/api/settings/key/<provider>", methods=["DELETE"])
+@login_required
 def delete_settings_key(provider):
     if provider not in provider_config.PROVIDER_CLASSES:
         return jsonify({"error": "Okänd leverantör"}), 400
-    provider_config.remove_provider_config(provider)
+    provider_config.remove_provider_config(session["account_id"], provider)
     return jsonify({"ok": True})
 
 
 @app.route("/api/settings/order", methods=["POST"])
+@login_required
 def set_settings_order():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Ogiltig eller saknad JSON-data"}), 400
     order = data.get("order", [])
     for entry in order:
         if entry.get("provider") not in provider_config.PROVIDER_CLASSES:
             return jsonify({"error": f"Okänd leverantör: {entry.get('provider')}"}), 400
-    provider_config.set_order(order)
+    provider_config.set_order(session["account_id"], order)
     return jsonify({"ok": True})
 
 
 @app.route("/api/upload", methods=["POST"])
+@login_required
 def upload():
     if "file" not in request.files:
         return jsonify({"error": "Ingen fil bifogad"}), 400
@@ -371,7 +440,8 @@ def upload():
     allowed_suffixes = {ext.lower(): ext.lower() for ext in SUPPORTED_EXTENSIONS}
     safe_suffix = allowed_suffixes[suffix]
 
-    if not provider_config.configured_providers():
+    account_id = session["account_id"]
+    if not provider_config.configured_providers(account_id):
         return jsonify({"error": "Ingen AI-leverantör är konfigurerad. Lägg till en API-nyckel i inställningarna."}), 400
 
     workers = max(1, min(8, int(request.form.get("workers", 2))))
@@ -382,13 +452,16 @@ def upload():
     }
     custom_direction = request.form.get("custom_direction", "")
 
-    job_id = str(uuid.uuid4())[:8]
+    job_id = uuid.uuid4().hex
     original_name = Path(f.filename).name
-    input_path = UPLOAD_DIR / f"{job_id}{safe_suffix}"
+    account_upload_dir = UPLOAD_DIR / account_id
+    account_upload_dir.mkdir(parents=True, exist_ok=True)
+    input_path = account_upload_dir / f"{job_id}{safe_suffix}"
     f.save(input_path)
 
     job = {
         "id": job_id,
+        "account_id": account_id,
         "filename": original_name,
         "input_path": str(input_path),
         "options": options,
@@ -412,24 +485,27 @@ def upload():
 
 
 @app.route("/api/jobs")
+@login_required
 def list_jobs():
-    return jsonify(_get_jobs())
+    return jsonify(_get_jobs(session["account_id"]))
 
 
 @app.route("/api/jobs/<job_id>")
+@login_required
 def get_job(job_id: str):
     with _lock:
         job = _jobs.get(job_id)
-    if not job:
+    if not job or job.get("account_id") != session["account_id"]:
         return jsonify({"error": "Hittar inte jobbet"}), 404
     return jsonify(job)
 
 
 @app.route("/api/jobs/<job_id>/download")
+@login_required
 def download_job(job_id: str):
     with _lock:
         job = _jobs.get(job_id)
-    if not job or not job.get("output_file"):
+    if not job or job.get("account_id") != session["account_id"] or not job.get("output_file"):
         return jsonify({"error": "Ingen fil att ladda ner"}), 404
     stem = Path(job["filename"]).stem
     return send_file(
@@ -450,7 +526,7 @@ def _sync_loop() -> None:
     log.info("sync worker starting: scraper=%s interval=%ds workers=%d", scraper_url, interval, workers)
 
     while True:
-        chain = provider_config.build_chain()
+        chain = provider_config.build_chain_from_env()
         if chain is None:
             log.warning("sync: ingen AI-leverantör konfigurerad, väntar")
             time.sleep(interval)

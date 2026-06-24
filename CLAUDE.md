@@ -7,6 +7,12 @@ providers on rate limits/quota errors and automatic resume once a quota
 resets. Accepts CSV, Excel, `.txt`, `.docx`, or `.pdf` and outputs a CSV
 with added `Beskrivning` and `Varför` columns.
 
+Multi-tenant: each account signs up with email+password and configures its
+own provider keys — the operator never becomes financially responsible for
+another account's API usage (jobs, keys, and failover order are fully
+isolated per account_id). CLI mode (`main.py run`/`sync`) is unrelated to
+accounts — it reads keys directly from environment variables instead.
+
 Note: none of the supported providers can be authenticated via a consumer
 subscription (ChatGPT Plus, Claude Pro, Gemini Advanced, Copilot) — those
 are billed and authenticated completely separately from the developer
@@ -23,12 +29,13 @@ the others are pay-per-use regardless of any subscription also held.
 
 ```
 app.py              # Flask web UI + job runner with pause/auto-resume
-main.py             # CLI (run / sync subcommands)
+auth.py             # Account signup/login (SQLite), legacy-data migration for the first account
+main.py             # CLI (run / sync subcommands) — env-var keys, not account-scoped
 providers.py        # Provider abstraction + ProviderChain failover engine
-provider_config.py  # API key storage (config/credentials/) + failover order
+provider_config.py  # Per-account API key storage (config/accounts/<id>/credentials/) + failover order
 prompts.py          # Builds the system prompt from tone/length/audience/custom options
 extractors.py       # Turns an uploaded file into product rows (AI-assisted for unstructured formats)
-templates/index.html
+templates/index.html, login.html, signup.html
 ```
 
 ## Dev Commands
@@ -55,7 +62,7 @@ docker compose up -d
 ## Conventions
 
 - All config (API keys, scraper API URL) via environment variables or the
-  `config/credentials/` volume — never hardcoded, never committed
+  `config/accounts/<account_id>/credentials/` volume — never hardcoded, never committed
 - API keys (and, for Azure OpenAI, the endpoint/deployment that go with one)
   are saved via the web UI as a single encrypted-at-rest (Fernet) JSON blob
   per provider, using `PROVIDER_CONFIG_MASTER_KEY`; without it, saving a new
@@ -67,8 +74,15 @@ docker compose up -d
   If it needs config beyond an api_key (like Azure's endpoint/deployment),
   add it to `EXTRA_FIELDS` too
 - Keep prompts in `prompts.py` so they're easy to tune in one place
-- Provider failover order lives in `config/provider_order.json`, filtered
-  server-side to providers that currently have a key configured
+- Provider failover order lives in `config/accounts/<account_id>/provider_order.json`,
+  filtered server-side to providers that currently have a key configured
+- Every route except `/login`/`/signup` requires `@login_required`
+  (`app.py`); `session["account_id"]` scopes provider config, jobs, and
+  uploaded/output files — never read another account's job by guessing its
+  id, ownership is checked on every job lookup
+- The first account ever created automatically inherits any pre-existing
+  global config/jobs from before the account system existed (`auth.py`'s
+  `_migrate_legacy_data`) — only runs once, when the accounts table is empty
 - A job's extracted rows and partial per-row results are cached to disk
   (`outputs/{job_id}_rows.json` / `_partial.json`) so a pause (provider
   exhaustion) never loses completed work, even across restarts
