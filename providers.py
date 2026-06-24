@@ -111,6 +111,10 @@ class AnthropicProvider(Provider):
             )
         except anthropic.RateLimitError as e:
             raise RateLimitExceeded(self.name, retry_after=_retry_after_seconds(e)) from e
+        except anthropic.BadRequestError as e:
+            if _is_billing_exhausted(e):
+                raise RateLimitExceeded(self.name, retry_after=_BILLING_RETRY_SECONDS) from e
+            raise
         return "".join(block.text for block in resp.content if block.type == "text")
 
     def available_models(self) -> list[str]:
@@ -145,6 +149,10 @@ class OpenAIProvider(Provider):
             )
         except openai.RateLimitError as e:
             raise RateLimitExceeded(self.name, retry_after=_retry_after_seconds(e)) from e
+        except openai.APIStatusError as e:
+            if _is_billing_exhausted(e):
+                raise RateLimitExceeded(self.name, retry_after=_BILLING_RETRY_SECONDS) from e
+            raise
         return resp.choices[0].message.content or ""
 
     def available_models(self) -> list[str]:
@@ -178,6 +186,8 @@ class GeminiProvider(Provider):
         except genai_errors.ClientError as e:
             if getattr(e, "code", None) == 429:
                 raise RateLimitExceeded(self.name, retry_after=_retry_after_seconds(e)) from e
+            if _is_billing_exhausted(e):
+                raise RateLimitExceeded(self.name, retry_after=_BILLING_RETRY_SECONDS) from e
             raise
         return resp.text or ""
 
@@ -226,6 +236,10 @@ class AzureOpenAIProvider(Provider):
             )
         except openai.RateLimitError as e:
             raise RateLimitExceeded(self.name, retry_after=_retry_after_seconds(e)) from e
+        except openai.APIStatusError as e:
+            if _is_billing_exhausted(e):
+                raise RateLimitExceeded(self.name, retry_after=_BILLING_RETRY_SECONDS) from e
+            raise
         return resp.choices[0].message.content or ""
 
     def available_models(self) -> list[str]:
@@ -242,6 +256,26 @@ def _retry_after_seconds(exc: Exception) -> float | None:
         return float(value) if value is not None else None
     except ValueError:
         return None
+
+
+# En "för låg kreditbalans"/"saknar kvot"-fel kommer inte alltid som ett
+# rate-limit-statuskod (Anthropic skickar t.ex. 400, inte 429) — men ska
+# behandlas likadant: byt till nästa leverantör i kedjan istället för att
+# misslyckas rad för rad mot samma uttömda leverantör. Matchar på text
+# eftersom SDK:erna saknar en gemensam exception-typ för detta specifikt.
+_BILLING_EXHAUSTED_PHRASES = (
+    "credit balance",
+    "insufficient_quota",
+    "insufficient quota",
+    "exceeded your current quota",
+    "billing",
+)
+_BILLING_RETRY_SECONDS = 6 * 3600  # ingen API-ledtråd om när krediter fylls på — gissa 6h
+
+
+def _is_billing_exhausted(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(phrase in text for phrase in _BILLING_EXHAUSTED_PHRASES)
 
 
 def _next_reset(retry_after: float | None) -> datetime:
