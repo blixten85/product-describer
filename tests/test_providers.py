@@ -8,6 +8,7 @@ from providers import (
     ProviderChain,
     ProviderSpec,
     RateLimitExceeded,
+    _is_billing_exhausted,
     parse_description_response,
 )
 
@@ -59,6 +60,23 @@ class TestParseDescriptionResponse:
         result = parse_description_response('  {"beskrivning": "  Fin produkt.  ", "varför": " Ja. "}  ')
         assert result["beskrivning"] == "Fin produkt."
         assert result["varför"] == "Ja."
+
+
+class TestIsBillingExhausted:
+    def test_anthropic_credit_balance_message(self):
+        exc = Exception(
+            "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
+            "'message': 'Your credit balance is too low to access the Anthropic API.'}}"
+        )
+        assert _is_billing_exhausted(exc)
+
+    def test_openai_insufficient_quota_message(self):
+        exc = Exception("You exceeded your current quota, please check your plan and billing details.")
+        assert _is_billing_exhausted(exc)
+
+    def test_unrelated_error_not_flagged(self):
+        exc = Exception("Invalid model name 'gpt-99'")
+        assert not _is_billing_exhausted(exc)
 
 
 class TestProviderChain:
