@@ -24,7 +24,7 @@ import traceback
 import requests
 
 _SECRET_ENV_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASS")
-_EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
+_EMAIL_RE = re.compile(r"[\w.+-]{1,64}@[\w.-]{1,255}\.\w{2,24}")
 _HOME_PATH_RE = re.compile(r"/home/[^/\s]+")
 _KEY_PATTERN_RE = re.compile(
     r"(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|"
