@@ -7,6 +7,7 @@ services:
       - "5050:5050"
     environment:
       PROVIDER_CONFIG_MASTER_KEY: ${PROVIDER_CONFIG_MASTER_KEY:?Set PROVIDER_CONFIG_MASTER_KEY in .env — generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?Set FLASK_SECRET_KEY in .env — generate one with: python -c "import secrets; print(secrets.token_hex(32))"}
       GITHUB_ERROR_REPORT_TOKEN: ${GITHUB_ERROR_REPORT_TOKEN:-}
     volumes:
       - uploads:/app/uploads

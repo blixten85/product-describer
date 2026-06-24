@@ -644,8 +644,12 @@
                 <span class="status-dot" id="statusDot"></span>
                 <span id="statusLabel">Kontrollerar…</span>
             </div>
+            <span class="status-pill" title="Inloggad som">{{ email }}</span>
             <button class="icon-btn" id="settingsBtn" onclick="openSettings()" title="Inställningar">⚙</button>
             <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Byt tema"></button>
+            <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
+                <button class="icon-btn" type="submit" title="Logga ut">⏻</button>
+            </form>
         </div>
     </div>
 </nav>

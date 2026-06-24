@@ -97,11 +97,12 @@ def push_description(scraper_url: str, product_id: int, beskrivning: str, varfö
 
 
 def _require_chain() -> ProviderChain:
-    chain = provider_config.build_chain()
+    chain = provider_config.build_chain_from_env()
     if chain is None:
         print(
-            "Ingen AI-leverantör är konfigurerad. Lägg till en API-nyckel "
-            "(t.ex. ANTHROPIC_API_KEY eller via inställningarna i webbgränssnittet).",
+            "Ingen AI-leverantör är konfigurerad. Sätt en API-nyckel som "
+            "miljövariabel (t.ex. ANTHROPIC_API_KEY) — CLI-läget är inte "
+            "knutet till ett webbgränssnitts-konto.",
             file=sys.stderr,
         )
         sys.exit(1)

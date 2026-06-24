@@ -30,24 +30,29 @@ Two modes are supported:
 docker compose up -d
 ```
 
-Open **http://your-server:5050** and add at least one API key under
-**Inställningar** (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
-`GEMINI_API_KEY` / `AZURE_OPENAI_API_KEY` as environment variables before
-starting the container). Azure OpenAI also needs its endpoint URL and
+Open **http://your-server:5050**, create an account (email + password —
+multi-tenant: every account brings its own provider keys, so the operator
+never pays for another account's usage), then add at least one API key
+under **Inställningar**. Azure OpenAI also needs its endpoint URL and
 deployment name, set under **Inställningar** (they aren't secrets, so
 there's no environment variable for them).
 
-Saving a key under **Inställningar** encrypts it at rest, so you **must**
-set `PROVIDER_CONFIG_MASTER_KEY` to a Fernet key before starting the
-container — generate one with:
+Two values are **required** before starting the container, or it refuses
+to start with a clear error naming which one is missing:
 
 ```bash
+# Encrypts saved API keys at rest
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Signs the login session cookie — keep it stable across restarts, or everyone gets logged out
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-If `PROVIDER_CONFIG_MASTER_KEY` isn't set, saving a key under
-**Inställningar** fails with a clear error rather than silently rejecting
-your key — set the variable above and restart the container.
+Set these as `PROVIDER_CONFIG_MASTER_KEY` and `FLASK_SECRET_KEY` in `.env`.
+
+The CLI (`python main.py run products.csv` / `sync --watch`) is unrelated
+to accounts — it reads `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` /
+`GEMINI_API_KEY` / `AZURE_OPENAI_API_KEY` (+ `AZURE_OPENAI_ENDPOINT`/
+`AZURE_OPENAI_DEPLOYMENT`) directly from environment variables instead.
 
 ## Usage
 
