@@ -6,10 +6,7 @@
     ":dependencyDashboard",
     ":semanticCommits",
     ":separateMajorReleases",
-    ":combinePatchMinorReleases",
-    ":prConcurrentLimit10",
-    ":rebaseStalePrs",
-    "group:allNonMajor"
+    ":rebaseStalePrs"
   ],
   "timezone": "Europe/Stockholm",
   "labels": [
@@ -31,19 +28,14 @@
   },
   "packageRules": [
     {
+      "description": "Automerge patch updates on their own (kept out of any non-major group)",
       "matchUpdateTypes": [
         "patch"
       ],
       "automerge": true
     },
     {
-      "matchDepTypes": [
-        "devDependencies"
-      ],
-      "groupName": "dev-dependencies",
-      "automerge": true
-    },
-    {
+      "description": "Group GitHub Actions updates",
       "matchManagers": [
         "github-actions"
       ],
