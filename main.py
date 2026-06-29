@@ -19,6 +19,7 @@ from pathlib import Path
 import requests
 
 import provider_config
+from csv_safety import safe_csv
 from extractors import extract_rows
 from github_report import report_error_to_github
 from prompts import build_system_prompt
@@ -161,8 +162,8 @@ def cmd_run(args) -> None:
         writer.writeheader()
         for i, row in enumerate(rows):
             parts = results.get(i, {"beskrivning": "", "varför": ""})
-            row["Beskrivning"] = parts.get("beskrivning", "")
-            row["Varför"] = parts.get("varför", "")
+            row["Beskrivning"] = safe_csv(parts.get("beskrivning", ""))
+            row["Varför"] = safe_csv(parts.get("varför", ""))
             writer.writerow(row)
 
     ok = sum(1 for v in results.values() if v.get("beskrivning"))

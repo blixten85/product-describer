@@ -3,11 +3,10 @@ import functools
 import json
 import logging
 import os
-import re
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
@@ -15,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 import auth
 import provider_config
+from csv_safety import safe_csv
 from extractors import SUPPORTED_EXTENSIONS, extract_rows
 from github_report import report_error_to_github
 from main import (
@@ -41,10 +41,14 @@ app.secret_key = os.environ["FLASK_SECRET_KEY"]
 # på en annan sida som postar hit) — den huvudsakliga CSRF-vektorn för de
 # state-ändrande rutterna (logout, inställningar, uppladdning).
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Skicka aldrig sessionscookien över oskyddat HTTP. Default på; sätt
+# SESSION_COOKIE_SECURE=0 bara för lokal utveckling utan TLS.
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "1").lower() not in ("0", "false", "no", "")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-_FORMULA_PREFIX = re.compile(r"^[=+\-@\t\r]")
+JOB_RETENTION_DAYS = int(os.getenv("JOB_RETENTION_DAYS", "30"))
 
 
 def login_required(view):
@@ -79,10 +83,6 @@ def handle_unexpected_error(exc):
     )
     return jsonify({"error": "Internt serverfel. Se serverloggen för detaljer."}), 500
 
-
-def _safe_csv(value: str) -> str:
-    """Prevent CSV formula injection by prefixing dangerous leading characters."""
-    return "'" + value if _FORMULA_PREFIX.match(value) else value
 
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -273,8 +273,8 @@ def _finish_job(job_id: str, job: dict, rows: list[dict], fieldnames: list[str],
         for i, row in enumerate(rows):
             parts = results.get(i, {"beskrivning": "", "varför": ""})
             row = dict(row)
-            row["Beskrivning"] = _safe_csv(parts.get("beskrivning", ""))
-            row["Varför"] = _safe_csv(parts.get("varför", ""))
+            row["Beskrivning"] = safe_csv(parts.get("beskrivning", ""))
+            row["Varför"] = safe_csv(parts.get("varför", ""))
             writer.writerow(row)
 
     with _lock:
@@ -283,12 +283,45 @@ def _finish_job(job_id: str, job: dict, rows: list[dict], fieldnames: list[str],
         job["succeeded"] = sum(1 for v in results.values() if v.get("beskrivning"))
     _save()
     log.info("job=%s done — %d/%d succeeded", job_id, job["succeeded"], len(rows))
+    # Mellanresultat och indata behövs inte längre när utdata-CSV:n är skriven.
     _partial_path(job_id).unlink(missing_ok=True)
+    _rows_path(job_id).unlink(missing_ok=True)
+    if job.get("input_path"):
+        Path(job["input_path"]).unlink(missing_ok=True)
+
+
+def _purge_old_jobs() -> None:
+    """Rensa avslutade jobb (done/error) äldre än JOB_RETENTION_DAYS, annars
+    växer _jobs, outputs/ och uploads/ obegränsat. 0 = ingen rensning."""
+    if JOB_RETENTION_DAYS <= 0:
+        return
+    cutoff = datetime.now(timezone.utc) - timedelta(days=JOB_RETENTION_DAYS)
+    with _lock:
+        stale = [
+            j for j in _jobs.values()
+            if j["status"] in ("done", "error") and j.get("created_at")
+            and datetime.fromisoformat(j["created_at"]) < cutoff
+        ]
+        for job in stale:
+            _jobs.pop(job["id"], None)
+    for job in stale:
+        for path in (
+            job.get("input_path"),
+            job.get("output_file"),
+            str(_rows_path(job["id"])),
+            str(_partial_path(job["id"])),
+        ):
+            if path:
+                Path(path).unlink(missing_ok=True)
+    if stale:
+        _save()
+        log.info("rensade %d gamla jobb (äldre än %d dagar)", len(stale), JOB_RETENTION_DAYS)
 
 
 def _resume_watcher() -> None:
     while True:
         time.sleep(RESUME_CHECK_INTERVAL)
+        _purge_old_jobs()
         now = datetime.now(timezone.utc)
         with _lock:
             due = [
@@ -301,7 +334,20 @@ def _resume_watcher() -> None:
             threading.Thread(target=_process, args=(job_id,), daemon=True).start()
 
 
+def _resume_interrupted_jobs() -> None:
+    """Ett jobb som låg i 'queued'/'processing' när processen dog (omstart,
+    krasch) blir aldrig klart av sig självt — resume-watchern hanterar bara
+    'paused'. Starta om dem vid uppstart; delresultaten på disk gör att redan
+    klara rader inte görs om."""
+    with _lock:
+        interrupted = [j["id"] for j in _jobs.values() if j["status"] in ("queued", "processing")]
+    for job_id in interrupted:
+        log.info("job=%s resuming after restart", job_id)
+        threading.Thread(target=_process, args=(job_id,), daemon=True).start()
+
+
 threading.Thread(target=_resume_watcher, daemon=True, name="resume-watcher").start()
+_resume_interrupted_jobs()
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -323,9 +369,17 @@ def login():
         return render_template("login.html", error=None)
     email = request.form.get("email", "")
     password = request.form.get("password", "")
+    throttle_key = f"{email.strip().lower()}|{request.remote_addr or ''}"
+    if auth.login_blocked(throttle_key):
+        return render_template(
+            "login.html",
+            error="För många misslyckade försök. Vänta en stund och försök igen.",
+        ), 429
     account_id = auth.verify_login(email, password)
     if not account_id:
+        auth.record_login_failure(throttle_key)
         return render_template("login.html", error="Fel e-postadress eller lösenord"), 401
+    auth.reset_login_failures(throttle_key)
     session["account_id"] = account_id
     return redirect(url_for("index"))
 

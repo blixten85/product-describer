@@ -19,9 +19,30 @@ i titeln innan en ny skapas, så en upprepad krasch inte spammar repot.
 import hashlib
 import os
 import re
+import threading
+import time
 import traceback
 
 import requests
+
+# Tak på hur många issues som öppnas per fönster, så att fel som en
+# angripare kan trigga med varierande tracebacks (= olika fingeravtryck,
+# som kringgår avdubblingen) inte spammar repot eller GitHub-API:et.
+_REPORT_MAX_PER_WINDOW = int(os.getenv("GITHUB_REPORT_MAX_PER_WINDOW", "20"))
+_REPORT_WINDOW_SECONDS = int(os.getenv("GITHUB_REPORT_WINDOW_SECONDS", "3600"))
+_report_times: list[float] = []
+_report_lock = threading.Lock()
+
+
+def _report_throttled() -> bool:
+    now = time.time()
+    with _report_lock:
+        _report_times[:] = [t for t in _report_times if now - t < _REPORT_WINDOW_SECONDS]
+        if len(_report_times) >= _REPORT_MAX_PER_WINDOW:
+            return True
+        _report_times.append(now)
+        return False
+
 
 _SECRET_ENV_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASS")
 _EMAIL_RE = re.compile(r"[\w.+-]{1,64}@[\w.-]{1,255}\.\w{2,24}")
@@ -58,6 +79,8 @@ def report_error_to_github(repo: str, title: str, exc: BaseException, context: d
     effort', ska aldrig krascha anroparen)."""
     token = os.environ.get("GITHUB_ERROR_REPORT_TOKEN")
     if not token:
+        return None
+    if _report_throttled():
         return None
 
     fp = _fingerprint(exc)

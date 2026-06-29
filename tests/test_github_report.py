@@ -36,6 +36,7 @@ class TestReportErrorToGithub:
 
     def test_never_raises_on_network_failure(self, monkeypatch):
         monkeypatch.setenv("GITHUB_ERROR_REPORT_TOKEN", "fake-token")
+        monkeypatch.setattr(github_report, "_report_times", [])
 
         def boom(*args, **kwargs):
             raise github_report.requests.RequestException("network down")
@@ -44,3 +45,22 @@ class TestReportErrorToGithub:
         monkeypatch.setattr(github_report.requests, "post", boom)
         result = report_error_to_github("blixten85/test", "title", ValueError("x"))
         assert result is None
+
+    def test_throttles_after_max_per_window(self, monkeypatch):
+        monkeypatch.setenv("GITHUB_ERROR_REPORT_TOKEN", "fake-token")
+        monkeypatch.setattr(github_report, "_report_times", [])
+        monkeypatch.setattr(github_report, "_REPORT_MAX_PER_WINDOW", 2)
+        calls = []
+        monkeypatch.setattr(
+            github_report.requests, "get",
+            lambda *a, **k: calls.append(1) or (_ for _ in ()).throw(github_report.requests.RequestException()),
+        )
+        monkeypatch.setattr(
+            github_report.requests, "post",
+            lambda *a, **k: (_ for _ in ()).throw(github_report.requests.RequestException()),
+        )
+        # De första två släpps igenom (och försöker nätverk), den tredje stoppas av spärren.
+        report_error_to_github("blixten85/test", "t", ValueError("x"))
+        report_error_to_github("blixten85/test", "t", ValueError("y"))
+        report_error_to_github("blixten85/test", "t", ValueError("z"))
+        assert len(calls) == 2
