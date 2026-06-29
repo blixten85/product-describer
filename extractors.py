@@ -8,12 +8,21 @@ that asks it to find every item mentioned and return them as JSON.
 
 import csv
 import json
+import logging
+import os
 import re
 from pathlib import Path
 
 from providers import AllProvidersExhausted, ProviderChain
 
+_log = logging.getLogger("describer.extractors")
+
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".txt", ".docx", ".pdf"}
+
+# Tak mot resursutmattning via en illvillig/jättestor uppladdning. PDF-sidor
+# läses tungt av pdfplumber; AI-extraktionen kapar ändå texten till MAX_EXTRACT_CHARS.
+MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "200"))
+MAX_EXTRACT_CHARS = int(os.getenv("MAX_EXTRACT_CHARS", "50000"))
 
 ROW_FIELDS = ["Site", "Product", "Price (SEK)", "Link"]
 
@@ -88,7 +97,9 @@ def _extract_text(path: str, suffix: str) -> str:
         import pdfplumber
 
         with pdfplumber.open(path) as pdf:
-            return "\n".join(page.extract_text() or "" for page in pdf.pages)
+            if len(pdf.pages) > MAX_PDF_PAGES:
+                _log.warning("PDF har %d sidor, läser bara de första %d", len(pdf.pages), MAX_PDF_PAGES)
+            return "\n".join(page.extract_text() or "" for page in pdf.pages[:MAX_PDF_PAGES])
     raise ExtractionError(f"Filtypen {suffix} stöds inte.")
 
 
@@ -97,10 +108,12 @@ def _ai_extract(text: str, chain: ProviderChain) -> tuple[list[dict], list[str]]
     if not text:
         raise ExtractionError("Dokumentet innehöll ingen text.")
 
-    try:
-        content = chain.call(EXTRACTION_PROMPT, text[:50_000])
-    except AllProvidersExhausted:
-        raise
+    if len(text) > MAX_EXTRACT_CHARS:
+        _log.warning(
+            "dokumentet kapades till %d av %d tecken inför AI-extraktion — produkter därefter kan saknas",
+            MAX_EXTRACT_CHARS, len(text),
+        )
+    content = chain.call(EXTRACTION_PROMPT, text[:MAX_EXTRACT_CHARS])
 
     match = _JSON_ARRAY.search(content or "")
     if not match:

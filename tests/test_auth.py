@@ -60,6 +60,45 @@ class TestVerifyLogin:
         assert auth.verify_login("User@Example.com", "longenoughpw") == account_id
 
 
+class TestLoginThrottle:
+    @pytest.fixture(autouse=True)
+    def _reset(self, monkeypatch):
+        monkeypatch.setattr(auth, "_login_failures", {})
+        monkeypatch.setattr(auth, "LOGIN_MAX_ATTEMPTS", 3)
+
+    def test_blocks_after_max_attempts(self):
+        key = "user@example.com|1.2.3.4"
+        for _ in range(3):
+            assert auth.login_blocked(key) is False
+            auth.record_login_failure(key)
+        assert auth.login_blocked(key) is True
+
+    def test_reset_clears_block(self):
+        key = "user@example.com|1.2.3.4"
+        for _ in range(3):
+            auth.record_login_failure(key)
+        assert auth.login_blocked(key) is True
+        auth.reset_login_failures(key)
+        assert auth.login_blocked(key) is False
+
+    def test_old_failures_expire(self, monkeypatch):
+        key = "user@example.com|1.2.3.4"
+        monkeypatch.setattr(auth, "LOGIN_WINDOW_SECONDS", 900)
+        t = [1000.0]
+        monkeypatch.setattr(auth.time, "time", lambda: t[0])
+        for _ in range(3):
+            auth.record_login_failure(key)
+        assert auth.login_blocked(key) is True
+        t[0] += 901  # fönstret passerat
+        assert auth.login_blocked(key) is False
+
+    def test_different_keys_isolated(self):
+        for _ in range(3):
+            auth.record_login_failure("a@example.com|1.1.1.1")
+        assert auth.login_blocked("a@example.com|1.1.1.1") is True
+        assert auth.login_blocked("b@example.com|2.2.2.2") is False
+
+
 class TestGetEmail:
     def test_returns_email_for_known_account(self):
         account_id, _ = auth.create_account("user@example.com", "longenoughpw")

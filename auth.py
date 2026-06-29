@@ -17,6 +17,8 @@ befintliga uppsättning inte går förlorad.
 
 import os
 import sqlite3
+import threading
+import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -25,6 +27,38 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 CONFIG_DIR = Path(os.getenv("CONFIG_DIR", "config"))
 DB_PATH = CONFIG_DIR / "accounts.db"
+
+# Brute-force-spärr på login. In-memory räcker: Gunicorn kör en enda
+# process (--workers 1 --threads 8), samma antagande som resume-watchern.
+LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+LOGIN_WINDOW_SECONDS = int(os.getenv("LOGIN_WINDOW_SECONDS", "900"))
+_login_failures: dict[str, list[float]] = {}
+_login_lock = threading.Lock()
+
+
+def _recent_failures(key: str, now: float) -> list[float]:
+    return [t for t in _login_failures.get(key, []) if now - t < LOGIN_WINDOW_SECONDS]
+
+
+def login_blocked(key: str) -> bool:
+    now = time.time()
+    with _login_lock:
+        attempts = _recent_failures(key, now)
+        _login_failures[key] = attempts
+        return len(attempts) >= LOGIN_MAX_ATTEMPTS
+
+
+def record_login_failure(key: str) -> None:
+    now = time.time()
+    with _login_lock:
+        attempts = _recent_failures(key, now)
+        attempts.append(now)
+        _login_failures[key] = attempts
+
+
+def reset_login_failures(key: str) -> None:
+    with _login_lock:
+        _login_failures.pop(key, None)
 
 
 @contextmanager

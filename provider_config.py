@@ -223,4 +223,3 @@ def build_chain_from_env() -> ProviderChain | None:
     if not specs:
         return None
     return ProviderChain(specs)
-    return ProviderChain(specs)
