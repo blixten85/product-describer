@@ -63,7 +63,7 @@ DESIGN.md i product-describer-cloudflare. CF=hjärna+minne (D1), server=statslö
 - Deploy engine: cd product-describer-cloudflare/engine; CLOUDFLARE_API_TOKEN=<politiker-deploy ur file-history v11>; npx wrangler deploy. D1: npx wrangler d1 execute product_describer --remote ...
 KVAR:
 - Fas 3 migrering: när lokal-postgres-backloggen är klar -> exportera products/source_text/price_history -> D1 (POST /ingest eller wrangler d1). Test-rader (Deltaco id1) finns redan i D1.
-- Fas 4 cron: EN scheduled() i engine (reclaim leases / schemalägg jobb / beskriv saknade). Lägg triggers crons */5 i engine/wrangler.jsonc.
+- Fas 4 KLAR (#18, DEPLOYAD): EN cron (*/5) i engine — reclaimLeases / scheduleDetailJobs / describeMissing. describe hoppas över tills GEMINI_API_KEY sätts (gratis): cd product-describer-cloudflare/engine && npx wrangler secret put GEMINI_API_KEY. GEMINI_API_KEY satt 2026-06-30 (free tier, projekt Product-describer). Cron körs live men ofarligt (få produkter i D1 tills migrering).
 - list-jobb (discovery): lease måste returnera list-selektorer; fetchern utökas.
 - Fas 5 alerts+UI, Fas 6 riv lokal postgres/scraper-API.
 
