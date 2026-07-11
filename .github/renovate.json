@@ -17,7 +17,7 @@
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": [
-      "after 3am and before 3:30am on tuesday"
+      "* 2-4 * * 2"
     ]
   },
   "vulnerabilityAlerts": {
@@ -45,6 +45,7 @@
   "prHourlyLimit": 2,
   "prConcurrentLimit": 10,
   "schedule": [
-    "after 3am and before 3:30am on tuesday"
-  ]
+    "* 2-4 * * 2"
+  ],
+  "updateNotScheduled": false
 }
