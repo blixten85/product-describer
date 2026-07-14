@@ -43,6 +43,7 @@ if os.getenv("SENTRY_DSN"):
         integrations=[FlaskIntegration()],
         traces_sample_rate=1.0,
         send_default_pii=False,
+        max_request_body_size="never",
     )
 
 UPLOAD_DIR = Path("uploads")
