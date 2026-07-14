@@ -41,7 +41,7 @@ if os.getenv("SENTRY_DSN"):
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
         integrations=[FlaskIntegration()],
-        traces_sample_rate=1.0,
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
         send_default_pii=False,
         max_request_body_size="never",
         include_local_variables=False,
