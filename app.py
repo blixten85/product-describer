@@ -9,7 +9,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import sentry_sdk
 from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
+from sentry_sdk.integrations.flask import FlaskIntegration
 from werkzeug.exceptions import HTTPException
 
 import auth
@@ -28,6 +30,20 @@ from providers import AllProvidersExhausted, PROVIDER_LABELS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("describer")
+
+# Optional: unset SENTRY_DSN in dev/CI to no-op, like GITHUB_ERROR_REPORT_TOKEN.
+# send_default_pii=False is intentional — product data (uploaded files, generated
+# descriptions) must never leave the system to a third party. Anthropic/OpenAI/
+# Gemini SDK calls (incl. Azure, which shares the openai package) are instrumented
+# automatically by sentry-sdk's auto-enabling integrations once the corresponding
+# provider package is installed — no manual wrapping needed at client instantiation.
+if os.getenv("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.environ["SENTRY_DSN"],
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+    )
 
 UPLOAD_DIR = Path("uploads")
 OUTPUT_DIR = Path("outputs")
@@ -58,6 +74,7 @@ def login_required(view):
             if request.path.startswith("/api/"):
                 return jsonify({"error": "Inte inloggad"}), 401
             return redirect(url_for("login"))
+        sentry_sdk.set_user({"id": session["account_id"]})
         return view(*args, **kwargs)
     return wrapped
 
