@@ -44,6 +44,7 @@ if os.getenv("SENTRY_DSN"):
         traces_sample_rate=1.0,
         send_default_pii=False,
         max_request_body_size="never",
+        include_local_variables=False,
     )
 
 UPLOAD_DIR = Path("uploads")
