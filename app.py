@@ -37,11 +37,22 @@ log = logging.getLogger("describer")
 # Gemini SDK calls (incl. Azure, which shares the openai package) are instrumented
 # automatically by sentry-sdk's auto-enabling integrations once the corresponding
 # provider package is installed — no manual wrapping needed at client instantiation.
+def _sentry_traces_sample_rate():
+    raw = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")
+    try:
+        return float(raw)
+    except ValueError:
+        log.warning(
+            "SENTRY_TRACES_SAMPLE_RATE=%r is not numeric, falling back to 1.0", raw
+        )
+        return 1.0
+
+
 if os.getenv("SENTRY_DSN"):
     sentry_sdk.init(
         dsn=os.environ["SENTRY_DSN"],
         integrations=[FlaskIntegration()],
-        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
+        traces_sample_rate=_sentry_traces_sample_rate(),
         send_default_pii=False,
         max_request_body_size="never",
         include_local_variables=False,
